@@ -1,5 +1,6 @@
 // ============================================================
 // RBAC Types & Mock Data for Multi-Tenant CMMS Platform
+// New model: Role -> Resource -> Action (no privileges/menus)
 // ============================================================
 
 // --- Types ---
@@ -54,59 +55,42 @@ export interface Organization {
   createdDate: string
 }
 
+// --- Resource with hierarchy (parent_id) ---
+export interface ResourceDef {
+  id: string
+  resourceKey: string
+  resourceName: string
+  parentId: string | null
+  description: string
+  isActive: boolean
+}
+
+// --- Action ---
+export interface ActionDef {
+  id: string
+  actionKey: string
+  actionName: string
+  description: string
+}
+
+// --- Role (permissions are in role_permissions, no more privileges) ---
 export interface Role {
   id: string
   tenantId: string
   name: string
   code: string
   description: string
-  scope: "Org-level"
+  scope: "Org-level" | "Tenant-level"
   status: "Active" | "Inactive"
-  privileges: string[]
   assignedUsersCount: number
 }
 
-export interface Privilege {
-  id: string
-  tenantId: string
-  name: string
-  code: string
-  description: string
-  status: "Active" | "Inactive"
-  menus: string[]
-  permissions: Permission[]
-}
-
-export interface Permission {
-  resource: string
-  actions: string[]
-}
-
-export interface MenuItem {
-  id: string
-  tenantId: string
-  title: string
-  route: string
-  icon: string
-  parentId: string | null
-  sortOrder: number
-  status: "Active" | "Inactive"
-  children?: MenuItem[]
-  privilegeIds: string[]
-}
-
-export interface ResourceDef {
-  code: string
-  name: string
-  description: string
-  status: "Active" | "Inactive"
-}
-
-export interface ActionDef {
-  code: string
-  name: string
-  description: string
-  status: "Active" | "Inactive"
+// --- Role Permission (role + resource + action mapping) ---
+export interface RolePermission {
+  roleId: string
+  resourceId: string
+  actionId: string
+  isAllowed: boolean
 }
 
 export interface AuditLog {
@@ -122,46 +106,66 @@ export interface AuditLog {
 
 // --- Seeded Actions ---
 export const seededActions: ActionDef[] = [
-  { code: "VIEW", name: "View", description: "Read-only access to view records", status: "Active" },
-  { code: "CREATE", name: "Create", description: "Create new records", status: "Active" },
-  { code: "UPDATE", name: "Update", description: "Modify existing records", status: "Active" },
-  { code: "DELETE", name: "Delete", description: "Permanently remove records", status: "Active" },
-  { code: "APPROVE", name: "Approve", description: "Approve pending requests or orders", status: "Active" },
-  { code: "ASSIGN", name: "Assign", description: "Assign records to users or teams", status: "Active" },
-  { code: "CLOSE", name: "Close", description: "Close completed records", status: "Active" },
-  { code: "CANCEL", name: "Cancel", description: "Cancel pending records", status: "Active" },
-  { code: "IMPORT", name: "Import", description: "Bulk import data from files", status: "Active" },
-  { code: "EXPORT", name: "Export", description: "Export data to files or reports", status: "Active" },
-  { code: "PRINT", name: "Print", description: "Print records or reports", status: "Active" },
-  { code: "ATTACHMENT_ADD", name: "Add Attachment", description: "Upload file attachments to records", status: "Active" },
-  { code: "ATTACHMENT_DELETE", name: "Delete Attachment", description: "Remove file attachments from records", status: "Active" },
-  { code: "CONFIGURE", name: "Configure", description: "System configuration and settings", status: "Active" },
+  { id: "A-01", actionKey: "VIEW", actionName: "View", description: "Read-only access to view records" },
+  { id: "A-02", actionKey: "CREATE", actionName: "Create", description: "Create new records" },
+  { id: "A-03", actionKey: "UPDATE", actionName: "Update", description: "Modify existing records" },
+  { id: "A-04", actionKey: "DELETE", actionName: "Delete", description: "Permanently remove records" },
+  { id: "A-05", actionKey: "APPROVE", actionName: "Approve", description: "Approve pending requests or orders" },
+  { id: "A-06", actionKey: "ASSIGN", actionName: "Assign", description: "Assign records to users or teams" },
+  { id: "A-07", actionKey: "CLOSE", actionName: "Close", description: "Close completed records" },
+  { id: "A-08", actionKey: "CANCEL", actionName: "Cancel", description: "Cancel pending records" },
+  { id: "A-09", actionKey: "IMPORT", actionName: "Import", description: "Bulk import data from files" },
+  { id: "A-10", actionKey: "EXPORT", actionName: "Export", description: "Export data to files or reports" },
+  { id: "A-11", actionKey: "PRINT", actionName: "Print", description: "Print records or reports" },
+  { id: "A-12", actionKey: "ATTACHMENT_ADD", actionName: "Add Attachment", description: "Upload file attachments to records" },
+  { id: "A-13", actionKey: "ATTACHMENT_DELETE", actionName: "Delete Attachment", description: "Remove file attachments from records" },
+  { id: "A-14", actionKey: "CONFIGURE", actionName: "Configure", description: "System configuration and settings" },
 ]
 
-// --- Seeded Resources ---
+// --- Seeded Resources (hierarchical via parentId) ---
 export const seededResources: ResourceDef[] = [
-  { code: "TENANT_SETTINGS", name: "Tenant Settings", description: "Tenant-level configuration and preferences", status: "Active" },
-  { code: "ORG_SETTINGS", name: "Organization Settings", description: "Organization-level configuration", status: "Active" },
-  { code: "USER", name: "User", description: "User account management", status: "Active" },
-  { code: "ROLE", name: "Role", description: "Role definitions and assignments", status: "Active" },
-  { code: "PRIVILEGE", name: "Privilege", description: "Privilege bundles with permissions", status: "Active" },
-  { code: "MENU", name: "Menu", description: "Navigation menu structure", status: "Active" },
-  { code: "AUDIT_LOG", name: "Audit Log", description: "System audit trail and activity logs", status: "Active" },
-  { code: "ASSET", name: "Asset", description: "Medical equipment and asset records", status: "Active" },
-  { code: "ASSET_CATEGORY", name: "Asset Category", description: "Equipment classification categories", status: "Active" },
-  { code: "LOCATION", name: "Location", description: "Physical locations and zones", status: "Active" },
-  { code: "MAINTENANCE_PLAN", name: "Maintenance Plan (PM)", description: "Preventive maintenance schedules", status: "Active" },
-  { code: "WORK_ORDER", name: "Work Order", description: "Corrective and preventive work orders", status: "Active" },
-  { code: "WORK_REQUEST", name: "Work Request", description: "Maintenance service requests", status: "Active" },
-  { code: "CHECKLIST", name: "Checklist", description: "Inspection and maintenance checklists", status: "Active" },
-  { code: "SPARE_ITEM", name: "Spare Item (Inventory)", description: "Spare parts and consumable inventory", status: "Active" },
-  { code: "STOCK_MOVEMENT", name: "Stock Movement", description: "Inventory stock-in and stock-out records", status: "Active" },
-  { code: "PURCHASE_REQUEST", name: "Purchase Request", description: "Purchase requisitions", status: "Active" },
-  { code: "PURCHASE_ORDER", name: "Purchase Order", description: "Purchase order management", status: "Active" },
-  { code: "VENDOR", name: "Vendor", description: "Vendor and supplier records", status: "Active" },
-  { code: "CONTRACT", name: "Contract / AMC", description: "Service contracts and AMC agreements", status: "Active" },
-  { code: "REPORTS", name: "Reports / Dashboard", description: "Reports, analytics, and dashboards", status: "Active" },
-  { code: "DOCUMENTS", name: "Documents", description: "Document management and attachments", status: "Active" },
+  // Administration Group
+  { id: "RES-01", resourceKey: "ADMINISTRATION", resourceName: "Administration", parentId: null, description: "Top-level administration group", isActive: true },
+  { id: "RES-02", resourceKey: "TENANT_SETTINGS", resourceName: "Tenant Settings", parentId: "RES-01", description: "Tenant-level configuration and preferences", isActive: true },
+  { id: "RES-03", resourceKey: "ORG_SETTINGS", resourceName: "Organization Settings", parentId: "RES-01", description: "Organization-level configuration", isActive: true },
+  { id: "RES-04", resourceKey: "USER", resourceName: "User", parentId: "RES-01", description: "User account management", isActive: true },
+  { id: "RES-05", resourceKey: "ROLE", resourceName: "Role", parentId: "RES-01", description: "Role definitions and assignments", isActive: true },
+  { id: "RES-06", resourceKey: "AUDIT_LOG", resourceName: "Audit Log", parentId: "RES-01", description: "System audit trail and activity logs", isActive: true },
+
+  // Asset Management Group
+  { id: "RES-07", resourceKey: "ASSET_MANAGEMENT", resourceName: "Asset Management", parentId: null, description: "Top-level asset management group", isActive: true },
+  { id: "RES-08", resourceKey: "ASSET", resourceName: "Asset", parentId: "RES-07", description: "Medical equipment and asset records", isActive: true },
+  { id: "RES-09", resourceKey: "ASSET_CATEGORY", resourceName: "Asset Category", parentId: "RES-07", description: "Equipment classification categories", isActive: true },
+  { id: "RES-10", resourceKey: "LOCATION", resourceName: "Location", parentId: "RES-07", description: "Physical locations and zones", isActive: true },
+  { id: "RES-11", resourceKey: "DEVICE_MASTER", resourceName: "Device Master", parentId: "RES-07", description: "Device catalog and master data", isActive: true },
+
+  // Maintenance Group
+  { id: "RES-12", resourceKey: "MAINTENANCE", resourceName: "Maintenance", parentId: null, description: "Top-level maintenance group", isActive: true },
+  { id: "RES-13", resourceKey: "MAINTENANCE_PLAN", resourceName: "Maintenance Plan (PM)", parentId: "RES-12", description: "Preventive maintenance schedules", isActive: true },
+  { id: "RES-14", resourceKey: "WORK_ORDER", resourceName: "Work Order", parentId: "RES-12", description: "Corrective and preventive work orders", isActive: true },
+  { id: "RES-15", resourceKey: "WORK_REQUEST", resourceName: "Work Request", parentId: "RES-12", description: "Maintenance service requests", isActive: true },
+  { id: "RES-16", resourceKey: "CHECKLIST", resourceName: "Checklist", parentId: "RES-12", description: "Inspection and maintenance checklists", isActive: true },
+
+  // Inventory Group
+  { id: "RES-17", resourceKey: "INVENTORY", resourceName: "Inventory", parentId: null, description: "Top-level inventory group", isActive: true },
+  { id: "RES-18", resourceKey: "STORE_MASTER", resourceName: "Store Master", parentId: "RES-17", description: "Store / warehouse master data", isActive: true },
+  { id: "RES-19", resourceKey: "ITEM_MASTER", resourceName: "Item Master", parentId: "RES-17", description: "Spare parts and consumable items", isActive: true },
+  { id: "RES-20", resourceKey: "GRN", resourceName: "Goods Receipt Note", parentId: "RES-17", description: "Goods receipt notes and inbound stock", isActive: true },
+  { id: "RES-21", resourceKey: "STOCK_MOVEMENT", resourceName: "Stock Movement", parentId: "RES-17", description: "Inventory stock-in and stock-out records", isActive: true },
+
+  // Operations Group
+  { id: "RES-22", resourceKey: "OPERATIONS", resourceName: "Operations", parentId: null, description: "Top-level operations group", isActive: true },
+  { id: "RES-23", resourceKey: "VENDOR", resourceName: "Vendor", parentId: "RES-22", description: "Vendor and supplier records", isActive: true },
+  { id: "RES-24", resourceKey: "PURCHASE_REQUEST", resourceName: "Purchase Request", parentId: "RES-22", description: "Purchase requisitions", isActive: true },
+  { id: "RES-25", resourceKey: "PURCHASE_ORDER", resourceName: "Purchase Order", parentId: "RES-22", description: "Purchase order management", isActive: true },
+  { id: "RES-26", resourceKey: "CONTRACT", resourceName: "Contract / AMC", parentId: "RES-22", description: "Service contracts and AMC agreements", isActive: true },
+  { id: "RES-27", resourceKey: "ASSET_TRANSFER", resourceName: "Asset Transfer", parentId: "RES-22", description: "Inter-org asset transfer management", isActive: true },
+
+  // Reports & Compliance
+  { id: "RES-28", resourceKey: "REPORTS_COMPLIANCE", resourceName: "Reports & Compliance", parentId: null, description: "Top-level reports and compliance group", isActive: true },
+  { id: "RES-29", resourceKey: "REPORTS", resourceName: "Reports / Dashboard", parentId: "RES-28", description: "Reports, analytics, and dashboards", isActive: true },
+  { id: "RES-30", resourceKey: "COMPLIANCE", resourceName: "Compliance", parentId: "RES-28", description: "Regulatory compliance tracking", isActive: true },
+  { id: "RES-31", resourceKey: "DOCUMENTS", resourceName: "Documents", parentId: "RES-28", description: "Document management and attachments", isActive: true },
 ]
 
 // --- Mock Tenants ---
@@ -206,120 +210,149 @@ export const mockUsers: TenantUser[] = [
   ]},
 ]
 
-// --- Seeded Privileges ---
-export const mockPrivileges: Privilege[] = [
-  { id: "P1", tenantId: "T-001", name: "Tenant Administration", code: "TENANT_ADMIN", description: "Full tenant-level administration including settings, orgs, users, roles, and audit logs", status: "Active",
-    menus: ["Tenant Settings", "Organizations", "Users", "Roles", "Privileges", "Menus", "Audit Logs"],
-    permissions: [
-      { resource: "TENANT_SETTINGS", actions: ["VIEW", "UPDATE"] },
-      { resource: "ORG_SETTINGS", actions: ["VIEW", "UPDATE"] },
-      { resource: "USER", actions: ["VIEW", "CREATE", "UPDATE", "DELETE"] },
-      { resource: "ROLE", actions: ["VIEW", "CREATE", "UPDATE", "DELETE"] },
-      { resource: "PRIVILEGE", actions: ["VIEW", "CREATE", "UPDATE", "DELETE"] },
-      { resource: "MENU", actions: ["VIEW", "CREATE", "UPDATE", "DELETE"] },
-      { resource: "AUDIT_LOG", actions: ["VIEW", "EXPORT"] },
-    ]},
-  { id: "P2", tenantId: "T-001", name: "Organization Administration", code: "ORG_ADMIN", description: "Org-level settings, users, and role assignment", status: "Active",
-    menus: ["Org Settings", "Org Users", "Role Assignment"],
-    permissions: [
-      { resource: "ORG_SETTINGS", actions: ["VIEW", "UPDATE"] },
-      { resource: "USER", actions: ["VIEW", "CREATE", "UPDATE"] },
-      { resource: "ROLE", actions: ["VIEW"] },
-      { resource: "AUDIT_LOG", actions: ["VIEW"] },
-    ]},
-  { id: "P3", tenantId: "T-001", name: "Work Order Management", code: "WO_MGMT", description: "Create, assign, update, and close work orders", status: "Active",
-    menus: ["Work Orders", "Work Requests"],
-    permissions: [
-      { resource: "WORK_ORDER", actions: ["VIEW", "CREATE", "UPDATE", "ASSIGN", "CLOSE"] },
-      { resource: "WORK_REQUEST", actions: ["VIEW", "CREATE", "UPDATE"] },
-    ]},
-  { id: "P4", tenantId: "T-001", name: "Work Order Approval", code: "WO_APPROVAL", description: "Approve or cancel work orders", status: "Active",
-    menus: ["Approvals"],
-    permissions: [
-      { resource: "WORK_ORDER", actions: ["APPROVE", "CANCEL"] },
-    ]},
-  { id: "P5", tenantId: "T-001", name: "Asset Management", code: "ASSET_MGMT", description: "Full asset lifecycle management including categories and locations", status: "Active",
-    menus: ["Assets", "Locations", "Categories"],
-    permissions: [
-      { resource: "ASSET", actions: ["VIEW", "CREATE", "UPDATE", "DELETE"] },
-      { resource: "ASSET_CATEGORY", actions: ["VIEW", "CREATE", "UPDATE", "DELETE"] },
-      { resource: "LOCATION", actions: ["VIEW", "CREATE", "UPDATE", "DELETE"] },
-      { resource: "DOCUMENTS", actions: ["ATTACHMENT_ADD", "ATTACHMENT_DELETE"] },
-    ]},
-  { id: "P6", tenantId: "T-001", name: "Preventive Maintenance", code: "PM_MGMT", description: "Create and manage PM plans and schedules", status: "Active",
-    menus: ["PM Plans", "Schedules"],
-    permissions: [
-      { resource: "MAINTENANCE_PLAN", actions: ["VIEW", "CREATE", "UPDATE", "DELETE"] },
-      { resource: "WORK_ORDER", actions: ["CREATE", "VIEW"] },
-    ]},
-  { id: "P7", tenantId: "T-001", name: "Inventory & Spares", code: "INV_MGMT", description: "Manage spare items and stock movements", status: "Active",
-    menus: ["Spares", "Stock"],
-    permissions: [
-      { resource: "SPARE_ITEM", actions: ["VIEW", "CREATE", "UPDATE", "DELETE"] },
-      { resource: "STOCK_MOVEMENT", actions: ["VIEW", "CREATE", "EXPORT"] },
-    ]},
-  { id: "P8", tenantId: "T-001", name: "Purchasing", code: "PURCHASE_MGMT", description: "Manage purchase orders and vendors", status: "Active",
-    menus: ["Purchase Orders", "Vendors"],
-    permissions: [
-      { resource: "PURCHASE_ORDER", actions: ["VIEW", "CREATE", "UPDATE", "APPROVE"] },
-      { resource: "VENDOR", actions: ["VIEW", "CREATE", "UPDATE", "DELETE"] },
-    ]},
-  { id: "P9", tenantId: "T-001", name: "Reporting", code: "REPORTING", description: "Access reports and dashboards", status: "Active",
-    menus: ["Reports", "Dashboard"],
-    permissions: [
-      { resource: "REPORTS", actions: ["VIEW", "EXPORT"] },
-    ]},
-  { id: "P10", tenantId: "T-001", name: "Read-only Operator", code: "READONLY", description: "View-only access to assets, work orders, and reports", status: "Active",
-    menus: ["Assets", "Work Orders", "Reports"],
-    permissions: [
-      { resource: "ASSET", actions: ["VIEW"] },
-      { resource: "WORK_ORDER", actions: ["VIEW"] },
-      { resource: "REPORTS", actions: ["VIEW"] },
-    ]},
-]
-
-// --- Seeded Roles ---
+// --- Seeded Roles (no more privileges array) ---
 export const mockRoles: Role[] = [
-  { id: "R1", tenantId: "T-001", name: "Tenant Group Admin", code: "TENANT_GROUP_ADMIN", description: "Full tenant-wide admin with reporting", scope: "Org-level", status: "Active", privileges: ["P1", "P9"], assignedUsersCount: 1 },
-  { id: "R2", tenantId: "T-001", name: "Organization Admin", code: "ORG_ADMIN", description: "Org-level user management and settings", scope: "Org-level", status: "Active", privileges: ["P2", "P9"], assignedUsersCount: 2 },
-  { id: "R3", tenantId: "T-001", name: "Maintenance Manager", code: "MAINT_MANAGER", description: "Full maintenance operations and approvals", scope: "Org-level", status: "Active", privileges: ["P3", "P4", "P5", "P6", "P9"], assignedUsersCount: 3 },
-  { id: "R4", tenantId: "T-001", name: "Technician", code: "TECHNICIAN", description: "Work order execution and limited asset viewing", scope: "Org-level", status: "Active", privileges: ["P3"], assignedUsersCount: 8 },
-  { id: "R5", tenantId: "T-001", name: "Storekeeper", code: "STOREKEEPER", description: "Inventory and spares management", scope: "Org-level", status: "Active", privileges: ["P7", "P9"], assignedUsersCount: 2 },
-  { id: "R6", tenantId: "T-001", name: "Purchase Officer", code: "PURCHASE_OFFICER", description: "Purchasing and vendor management", scope: "Org-level", status: "Active", privileges: ["P8", "P9"], assignedUsersCount: 1 },
-  { id: "R7", tenantId: "T-001", name: "Auditor / Compliance", code: "AUDITOR", description: "Reporting and audit log access", scope: "Org-level", status: "Active", privileges: ["P9"], assignedUsersCount: 1 },
-  { id: "R8", tenantId: "T-001", name: "Viewer (Read-only)", code: "VIEWER", description: "Read-only access across modules", scope: "Org-level", status: "Active", privileges: ["P10"], assignedUsersCount: 4 },
+  { id: "R1", tenantId: "T-001", name: "Tenant Group Admin", code: "TENANT_GROUP_ADMIN", description: "Full tenant-wide admin with reporting", scope: "Tenant-level", status: "Active", assignedUsersCount: 1 },
+  { id: "R2", tenantId: "T-001", name: "Organization Admin", code: "ORG_ADMIN", description: "Org-level user management and settings", scope: "Org-level", status: "Active", assignedUsersCount: 2 },
+  { id: "R3", tenantId: "T-001", name: "Maintenance Manager", code: "MAINT_MANAGER", description: "Full maintenance operations and approvals", scope: "Org-level", status: "Active", assignedUsersCount: 3 },
+  { id: "R4", tenantId: "T-001", name: "Technician", code: "TECHNICIAN", description: "Work order execution and limited asset viewing", scope: "Org-level", status: "Active", assignedUsersCount: 8 },
+  { id: "R5", tenantId: "T-001", name: "Storekeeper", code: "STOREKEEPER", description: "Inventory and spares management", scope: "Org-level", status: "Active", assignedUsersCount: 2 },
+  { id: "R6", tenantId: "T-001", name: "Purchase Officer", code: "PURCHASE_OFFICER", description: "Purchasing and vendor management", scope: "Org-level", status: "Active", assignedUsersCount: 1 },
+  { id: "R7", tenantId: "T-001", name: "Auditor / Compliance", code: "AUDITOR", description: "Reporting and audit log access", scope: "Org-level", status: "Active", assignedUsersCount: 1 },
+  { id: "R8", tenantId: "T-001", name: "Viewer (Read-only)", code: "VIEWER", description: "Read-only access across modules", scope: "Org-level", status: "Active", assignedUsersCount: 4 },
 ]
 
-// --- Mock Menus ---
-export const mockMenus: MenuItem[] = [
-  { id: "M-001", tenantId: "T-001", title: "Dashboard", route: "/dashboard", icon: "LayoutDashboard", parentId: null, sortOrder: 1, status: "Active", privilegeIds: ["P9"], children: [] },
-  { id: "M-002", tenantId: "T-001", title: "Asset Management", route: "/assets", icon: "Wrench", parentId: null, sortOrder: 2, status: "Active", privilegeIds: ["P5"], children: [
-    { id: "M-002-1", tenantId: "T-001", title: "Assets", route: "/assets/list", icon: "", parentId: "M-002", sortOrder: 1, status: "Active", privilegeIds: ["P5"] },
-    { id: "M-002-2", tenantId: "T-001", title: "Categories", route: "/assets/categories", icon: "", parentId: "M-002", sortOrder: 2, status: "Active", privilegeIds: ["P5"] },
-    { id: "M-002-3", tenantId: "T-001", title: "Locations", route: "/assets/locations", icon: "", parentId: "M-002", sortOrder: 3, status: "Active", privilegeIds: ["P5"] },
-  ]},
-  { id: "M-003", tenantId: "T-001", title: "Work Orders", route: "/work-orders", icon: "ClipboardList", parentId: null, sortOrder: 3, status: "Active", privilegeIds: ["P3"], children: [] },
-  { id: "M-004", tenantId: "T-001", title: "Preventive Maintenance", route: "/pm", icon: "CalendarClock", parentId: null, sortOrder: 4, status: "Active", privilegeIds: ["P6"], children: [] },
-  { id: "M-005", tenantId: "T-001", title: "Inventory", route: "/inventory", icon: "Package", parentId: null, sortOrder: 5, status: "Active", privilegeIds: ["P7"], children: [] },
-  { id: "M-006", tenantId: "T-001", title: "Administration", route: "/admin", icon: "Shield", parentId: null, sortOrder: 10, status: "Active", privilegeIds: ["P1"], children: [
-    { id: "M-006-1", tenantId: "T-001", title: "Organizations", route: "/admin/orgs", icon: "", parentId: "M-006", sortOrder: 1, status: "Active", privilegeIds: ["P1"] },
-    { id: "M-006-2", tenantId: "T-001", title: "Users", route: "/admin/users", icon: "", parentId: "M-006", sortOrder: 2, status: "Active", privilegeIds: ["P1"] },
-    { id: "M-006-3", tenantId: "T-001", title: "Roles", route: "/admin/roles", icon: "", parentId: "M-006", sortOrder: 3, status: "Active", privilegeIds: ["P1"] },
-    { id: "M-006-4", tenantId: "T-001", title: "Privileges", route: "/admin/privileges", icon: "", parentId: "M-006", sortOrder: 4, status: "Active", privilegeIds: ["P1"] },
-    { id: "M-006-5", tenantId: "T-001", title: "Menus", route: "/admin/menus", icon: "", parentId: "M-006", sortOrder: 5, status: "Active", privilegeIds: ["P1"] },
-  ]},
+// --- Role Permissions (role -> resource -> action) ---
+export const mockRolePermissions: RolePermission[] = [
+  // R1: Tenant Group Admin - Full admin + reports
+  { roleId: "R1", resourceId: "RES-02", actionId: "A-01", isAllowed: true }, // Tenant Settings > View
+  { roleId: "R1", resourceId: "RES-02", actionId: "A-03", isAllowed: true }, // Tenant Settings > Update
+  { roleId: "R1", resourceId: "RES-02", actionId: "A-14", isAllowed: true }, // Tenant Settings > Configure
+  { roleId: "R1", resourceId: "RES-03", actionId: "A-01", isAllowed: true }, // Org Settings > View
+  { roleId: "R1", resourceId: "RES-03", actionId: "A-03", isAllowed: true }, // Org Settings > Update
+  { roleId: "R1", resourceId: "RES-04", actionId: "A-01", isAllowed: true }, // User > View
+  { roleId: "R1", resourceId: "RES-04", actionId: "A-02", isAllowed: true }, // User > Create
+  { roleId: "R1", resourceId: "RES-04", actionId: "A-03", isAllowed: true }, // User > Update
+  { roleId: "R1", resourceId: "RES-04", actionId: "A-04", isAllowed: true }, // User > Delete
+  { roleId: "R1", resourceId: "RES-05", actionId: "A-01", isAllowed: true }, // Role > View
+  { roleId: "R1", resourceId: "RES-05", actionId: "A-02", isAllowed: true }, // Role > Create
+  { roleId: "R1", resourceId: "RES-05", actionId: "A-03", isAllowed: true }, // Role > Update
+  { roleId: "R1", resourceId: "RES-05", actionId: "A-04", isAllowed: true }, // Role > Delete
+  { roleId: "R1", resourceId: "RES-06", actionId: "A-01", isAllowed: true }, // Audit Log > View
+  { roleId: "R1", resourceId: "RES-06", actionId: "A-10", isAllowed: true }, // Audit Log > Export
+  { roleId: "R1", resourceId: "RES-29", actionId: "A-01", isAllowed: true }, // Reports > View
+  { roleId: "R1", resourceId: "RES-29", actionId: "A-10", isAllowed: true }, // Reports > Export
+
+  // R2: Organization Admin
+  { roleId: "R2", resourceId: "RES-03", actionId: "A-01", isAllowed: true },
+  { roleId: "R2", resourceId: "RES-03", actionId: "A-03", isAllowed: true },
+  { roleId: "R2", resourceId: "RES-04", actionId: "A-01", isAllowed: true },
+  { roleId: "R2", resourceId: "RES-04", actionId: "A-02", isAllowed: true },
+  { roleId: "R2", resourceId: "RES-04", actionId: "A-03", isAllowed: true },
+  { roleId: "R2", resourceId: "RES-05", actionId: "A-01", isAllowed: true },
+  { roleId: "R2", resourceId: "RES-06", actionId: "A-01", isAllowed: true },
+  { roleId: "R2", resourceId: "RES-29", actionId: "A-01", isAllowed: true },
+  { roleId: "R2", resourceId: "RES-29", actionId: "A-10", isAllowed: true },
+
+  // R3: Maintenance Manager
+  { roleId: "R3", resourceId: "RES-14", actionId: "A-01", isAllowed: true }, // Work Order > View
+  { roleId: "R3", resourceId: "RES-14", actionId: "A-02", isAllowed: true }, // Work Order > Create
+  { roleId: "R3", resourceId: "RES-14", actionId: "A-03", isAllowed: true }, // Work Order > Update
+  { roleId: "R3", resourceId: "RES-14", actionId: "A-05", isAllowed: true }, // Work Order > Approve
+  { roleId: "R3", resourceId: "RES-14", actionId: "A-06", isAllowed: true }, // Work Order > Assign
+  { roleId: "R3", resourceId: "RES-14", actionId: "A-07", isAllowed: true }, // Work Order > Close
+  { roleId: "R3", resourceId: "RES-15", actionId: "A-01", isAllowed: true }, // Work Request > View
+  { roleId: "R3", resourceId: "RES-15", actionId: "A-02", isAllowed: true },
+  { roleId: "R3", resourceId: "RES-15", actionId: "A-03", isAllowed: true },
+  { roleId: "R3", resourceId: "RES-08", actionId: "A-01", isAllowed: true }, // Asset > View
+  { roleId: "R3", resourceId: "RES-08", actionId: "A-02", isAllowed: true },
+  { roleId: "R3", resourceId: "RES-08", actionId: "A-03", isAllowed: true },
+  { roleId: "R3", resourceId: "RES-08", actionId: "A-04", isAllowed: true },
+  { roleId: "R3", resourceId: "RES-13", actionId: "A-01", isAllowed: true }, // PM > View
+  { roleId: "R3", resourceId: "RES-13", actionId: "A-02", isAllowed: true },
+  { roleId: "R3", resourceId: "RES-13", actionId: "A-03", isAllowed: true },
+  { roleId: "R3", resourceId: "RES-13", actionId: "A-04", isAllowed: true },
+  { roleId: "R3", resourceId: "RES-29", actionId: "A-01", isAllowed: true },
+  { roleId: "R3", resourceId: "RES-29", actionId: "A-10", isAllowed: true },
+
+  // R4: Technician
+  { roleId: "R4", resourceId: "RES-14", actionId: "A-01", isAllowed: true },
+  { roleId: "R4", resourceId: "RES-14", actionId: "A-02", isAllowed: true },
+  { roleId: "R4", resourceId: "RES-14", actionId: "A-03", isAllowed: true },
+  { roleId: "R4", resourceId: "RES-14", actionId: "A-07", isAllowed: true },
+  { roleId: "R4", resourceId: "RES-15", actionId: "A-01", isAllowed: true },
+  { roleId: "R4", resourceId: "RES-15", actionId: "A-02", isAllowed: true },
+  { roleId: "R4", resourceId: "RES-08", actionId: "A-01", isAllowed: true },
+
+  // R5: Storekeeper
+  { roleId: "R5", resourceId: "RES-18", actionId: "A-01", isAllowed: true },
+  { roleId: "R5", resourceId: "RES-18", actionId: "A-02", isAllowed: true },
+  { roleId: "R5", resourceId: "RES-18", actionId: "A-03", isAllowed: true },
+  { roleId: "R5", resourceId: "RES-19", actionId: "A-01", isAllowed: true },
+  { roleId: "R5", resourceId: "RES-19", actionId: "A-02", isAllowed: true },
+  { roleId: "R5", resourceId: "RES-19", actionId: "A-03", isAllowed: true },
+  { roleId: "R5", resourceId: "RES-19", actionId: "A-04", isAllowed: true },
+  { roleId: "R5", resourceId: "RES-20", actionId: "A-01", isAllowed: true },
+  { roleId: "R5", resourceId: "RES-20", actionId: "A-02", isAllowed: true },
+  { roleId: "R5", resourceId: "RES-21", actionId: "A-01", isAllowed: true },
+  { roleId: "R5", resourceId: "RES-21", actionId: "A-02", isAllowed: true },
+  { roleId: "R5", resourceId: "RES-21", actionId: "A-10", isAllowed: true },
+  { roleId: "R5", resourceId: "RES-29", actionId: "A-01", isAllowed: true },
+
+  // R6: Purchase Officer
+  { roleId: "R6", resourceId: "RES-25", actionId: "A-01", isAllowed: true },
+  { roleId: "R6", resourceId: "RES-25", actionId: "A-02", isAllowed: true },
+  { roleId: "R6", resourceId: "RES-25", actionId: "A-03", isAllowed: true },
+  { roleId: "R6", resourceId: "RES-25", actionId: "A-05", isAllowed: true },
+  { roleId: "R6", resourceId: "RES-23", actionId: "A-01", isAllowed: true },
+  { roleId: "R6", resourceId: "RES-23", actionId: "A-02", isAllowed: true },
+  { roleId: "R6", resourceId: "RES-23", actionId: "A-03", isAllowed: true },
+  { roleId: "R6", resourceId: "RES-23", actionId: "A-04", isAllowed: true },
+  { roleId: "R6", resourceId: "RES-29", actionId: "A-01", isAllowed: true },
+
+  // R7: Auditor / Compliance
+  { roleId: "R7", resourceId: "RES-06", actionId: "A-01", isAllowed: true },
+  { roleId: "R7", resourceId: "RES-06", actionId: "A-10", isAllowed: true },
+  { roleId: "R7", resourceId: "RES-29", actionId: "A-01", isAllowed: true },
+  { roleId: "R7", resourceId: "RES-29", actionId: "A-10", isAllowed: true },
+  { roleId: "R7", resourceId: "RES-30", actionId: "A-01", isAllowed: true },
+
+  // R8: Viewer (Read-only)
+  { roleId: "R8", resourceId: "RES-08", actionId: "A-01", isAllowed: true },
+  { roleId: "R8", resourceId: "RES-14", actionId: "A-01", isAllowed: true },
+  { roleId: "R8", resourceId: "RES-29", actionId: "A-01", isAllowed: true },
 ]
 
 // --- Mock Audit Logs ---
 export const mockAuditLogs: AuditLog[] = [
   { id: "AL-001", timestamp: "2026-02-14 09:32:15", actor: "Platform Admin", tenant: "Apollo Hospitals Group", entity: "Tenant T-001", entityType: "Tenant", action: "UPDATE", summary: "Status changed from Draft to Active" },
   { id: "AL-002", timestamp: "2026-02-14 09:15:00", actor: "Arjun Kumar", tenant: "Apollo Hospitals Group", entity: "User U-004 (Ravi Anand)", entityType: "User", action: "UPDATE", summary: "Status changed to Inactive" },
-  { id: "AL-003", timestamp: "2026-02-13 16:45:30", actor: "Arjun Kumar", tenant: "Apollo Hospitals Group", entity: "Role R4 (Technician)", entityType: "Role", action: "UPDATE", summary: "Added privilege P5 (Asset Management)" },
+  { id: "AL-003", timestamp: "2026-02-13 16:45:30", actor: "Arjun Kumar", tenant: "Apollo Hospitals Group", entity: "Role R4 (Technician)", entityType: "Role", action: "UPDATE", summary: "Added permission: Asset > View" },
   { id: "AL-004", timestamp: "2026-02-13 14:22:00", actor: "Platform Admin", tenant: "Max Healthcare", entity: "Tenant T-003", entityType: "Tenant", action: "CREATE", summary: "New tenant created as Draft" },
   { id: "AL-005", timestamp: "2026-02-13 11:30:45", actor: "Dr. Meena Shankar", tenant: "Apollo Hospitals Group", entity: "Org ORG-002", entityType: "Organization", action: "UPDATE", summary: "Address updated" },
   { id: "AL-006", timestamp: "2026-02-12 17:50:00", actor: "Platform Admin", tenant: "Manipal Hospitals", entity: "Tenant T-004", entityType: "Tenant", action: "UPDATE", summary: "Status changed to Suspended" },
   { id: "AL-007", timestamp: "2026-02-12 15:10:20", actor: "Arjun Kumar", tenant: "Apollo Hospitals Group", entity: "User U-003 (Priya Murugan)", entityType: "User", action: "UPDATE", summary: "Added org membership: ORG-003" },
   { id: "AL-008", timestamp: "2026-02-12 10:05:00", actor: "Platform Admin", tenant: "Fortis Healthcare", entity: "User (Admin Reset)", entityType: "User", action: "RESET_PASSWORD", summary: "Admin password regenerated for tenant admin" },
   { id: "AL-009", timestamp: "2026-02-11 13:20:00", actor: "Suresh Venkat", tenant: "Apollo Hospitals Group", entity: "Purchase Order PO-100", entityType: "Purchase", action: "APPROVE", summary: "Purchase order approved for Philips parts" },
-  { id: "AL-010", timestamp: "2026-02-11 09:00:00", actor: "Arjun Kumar", tenant: "Apollo Hospitals Group", entity: "Menu M-006", entityType: "Menu", action: "UPDATE", summary: "Reordered administration submenu items" },
+  { id: "AL-010", timestamp: "2026-02-11 09:00:00", actor: "Arjun Kumar", tenant: "Apollo Hospitals Group", entity: "Resource RES-27", entityType: "Resource", action: "CREATE", summary: "Added Asset Transfer resource under Operations" },
 ]
+
+// Helper: get children of a resource
+export function getResourceChildren(parentId: string): ResourceDef[] {
+  return seededResources.filter(r => r.parentId === parentId)
+}
+
+// Helper: get top-level resources
+export function getTopLevelResources(): ResourceDef[] {
+  return seededResources.filter(r => r.parentId === null)
+}
+
+// Helper: get permissions for a role
+export function getRolePermissions(roleId: string): RolePermission[] {
+  return mockRolePermissions.filter(rp => rp.roleId === roleId)
+}
+
+// Helper: check if a role has permission
+export function hasPermission(roleId: string, resourceId: string, actionId: string): boolean {
+  return mockRolePermissions.some(rp => rp.roleId === roleId && rp.resourceId === resourceId && rp.actionId === actionId && rp.isAllowed)
+}

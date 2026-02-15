@@ -1,0 +1,153 @@
+-- ============================================================================
+-- ENTITY-RELATIONSHIP SUMMARY
+-- Multi-Tenant CMMS Platform (Excluding Maintenance Module)
+-- ============================================================================
+
+-- ┌─────────────────────────────────────────────────────────────────────────┐
+-- │                        RELATIONSHIP DIAGRAM                            │
+-- └─────────────────────────────────────────────────────────────────────────┘
+--
+-- PLATFORM ADMIN LAYER
+-- =====================
+--
+--   tenants (1)
+--     │
+--     ├──< organizations (N)     -- One tenant has many orgs (hospitals)
+--     ├──< users (N)             -- One tenant has many users
+--     ├──< roles (N)             -- One tenant has many roles
+--     ├──< privileges (N)        -- One tenant has many privileges
+--     ├──< menu_items (N)        -- One tenant has many menus
+--     ├──< audit_logs (N)        -- One tenant has many audit entries
+--     ├──< device_masters (N)    -- One tenant has many device catalogs
+--     ├──< stores (N)            -- One tenant has many stores
+--     ├──< items (N)             -- One tenant has many items
+--     ├──< vendors (N)           -- One tenant has many vendors
+--     ├──< grn_headers (N)       -- One tenant has many GRNs
+--     ├──< assets (N)            -- One tenant has many assets
+--     ├──< compliance_frameworks (N)
+--     └──< report_definitions (N)
+--
+--
+-- RBAC LAYER (Tenant Admin)
+-- ==========================
+--
+--   users (1) ──< user_org_memberships (N) >── organizations (1)
+--                        │
+--                        └──< user_org_roles (N) >── roles (1)
+--                                                       │
+--                                                       └──< role_privileges (N) >── privileges (1)
+--                                                                                       │
+--                                                                                       ├──< privilege_permissions (N)
+--                                                                                       │        │
+--                                                                                       │        ├── resources (1)
+--                                                                                       │        └── actions (1)
+--                                                                                       │
+--                                                                                       └──< privilege_menus (N)
+--
+--   menu_items (self-referential: parent_id -> id)
+--     └──< menu_privileges (N) >── privileges
+--
+--
+-- DEVICE MANAGEMENT LAYER
+-- ========================
+--
+--   device_masters (1)
+--     ├──< device_documents (N)
+--     │        └── device_doc_categories (1)
+--     ├──< assets (N)                     -- One device model -> many asset instances
+--     └──< item_device_compatibility (N)  -- Many devices compatible with many items
+--
+--
+-- ASSET MANAGEMENT LAYER
+-- =======================
+--
+--   assets (1)
+--     ├── device_masters (FK)       -- Which device model this asset is
+--     ├── organizations (FK)        -- Which org/hospital owns this
+--     ├──< asset_accessories (N)
+--     ├──< asset_software_licenses (N)
+--     ├──< asset_regulatory_certs (N)
+--     ├──< asset_network_configs (1:1)
+--     ├──< asset_safety_compliance (N)
+--     ├──< asset_risk_scores (N)
+--     ├──< asset_procurement (1:1)
+--     ├──< asset_pm_profiles (N)
+--     └──< asset_documents (N)
+--
+--
+-- OPERATIONS LAYER
+-- =================
+--
+--   stores (1)
+--     ├── organizations (FK)
+--     ├──< items (N)              -- One store has many items
+--     ├──< grn_headers (N)        -- One store receives many GRNs
+--     └──< stock_movements (N)    -- One store has many movements
+--
+--   items (1)
+--     ├── stores (FK)
+--     ├──< grn_lines (N)          -- Item appears in many GRN lines
+--     ├──< stock_movements (N)    -- Item has many movements
+--     └──< item_device_compatibility (N)
+--
+--   vendors (1)
+--     ├── organizations (FK)
+--     ├──< vendor_documents (N)
+--     └──< grn_headers (N)        -- Vendor linked to GRN (Direct Purchase)
+--
+--   grn_headers (1)
+--     ├── stores (FK)
+--     ├── vendors (FK, nullable)
+--     └──< grn_lines (N)
+--          └── items (FK)
+--
+--
+-- ┌─────────────────────────────────────────────────────────────────────────┐
+-- │                        TABLE COUNT SUMMARY                             │
+-- └─────────────────────────────────────────────────────────────────────────┘
+--
+-- PLATFORM ADMIN:      1 table   (tenants)
+-- RBAC / TENANT ADMIN: 12 tables (organizations, users, user_org_memberships,
+--                                  resources, actions, privileges, privilege_permissions,
+--                                  roles, role_privileges, user_org_roles,
+--                                  menu_items, menu_privileges, privilege_menus,
+--                                  audit_logs)
+-- DEVICE MANAGEMENT:   3 tables  (device_masters, device_doc_categories, device_documents)
+-- ASSET MANAGEMENT:    10 tables (assets, asset_accessories, asset_software_licenses,
+--                                  asset_regulatory_certs, asset_network_configs,
+--                                  asset_safety_compliance, asset_risk_scores,
+--                                  asset_procurement, asset_pm_profiles, asset_documents)
+-- STORE/ITEM MASTER:   3 tables  (stores, items, item_device_compatibility)
+-- VENDOR:              2 tables  (vendors, vendor_documents)
+-- GRN:                 2 tables  (grn_headers, grn_lines)
+-- STOCK:               1 table   (stock_movements)
+-- COMPLIANCE/REPORTS:  3 tables  (compliance_frameworks, compliance_items, report_definitions)
+-- UTILITY:             1 function (update_updated_at trigger)
+--
+-- TOTAL:               38 tables + 1 trigger function
+--
+--
+-- ┌─────────────────────────────────────────────────────────────────────────┐
+-- │                     MULTI-TENANCY STRATEGY                             │
+-- └─────────────────────────────────────────────────────────────────────────┘
+--
+-- Strategy: Shared Schema with tenant_id discriminator
+--
+-- - All business tables include a tenant_id FK to tenants table
+-- - All queries MUST filter by tenant_id for data isolation
+-- - Resources and Actions are global (seeded, shared across tenants)
+-- - Roles, Privileges, Menus are tenant-scoped (configurable per tenant)
+-- - Users belong to a tenant and are assigned to orgs within that tenant
+-- - Org-switcher context is per user session (user_org_memberships.is_default)
+--
+--
+-- ┌─────────────────────────────────────────────────────────────────────────┐
+-- │                     INDEX STRATEGY                                     │
+-- └─────────────────────────────────────────────────────────────────────────┘
+--
+-- Every table includes:
+-- - Primary key index (automatic via UUID PK)
+-- - tenant_id index (for multi-tenant queries)
+-- - status index (for filtered list views)
+-- - Foreign key indexes (for JOIN performance)
+-- - Specific business indexes (serial_no, part_number, dates, etc.)

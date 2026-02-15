@@ -28,6 +28,10 @@
   --chart-3: #00E5CC;
   --chart-4: #F59E0B;
   --chart-5: #EF4444;
+  --success: #10B981;
+  --success-foreground: #FFFFFF;
+  --warning: #F59E0B;
+  --warning-foreground: #1B2A4A;
   --radius: 0.625rem;
   --sidebar: #0D1B2A;
   --sidebar-foreground: #94A3B8;
@@ -56,6 +60,10 @@
   --accent-foreground: #0D1B2A;
   --destructive: #EF4444;
   --destructive-foreground: #FFFFFF;
+  --success: #10B981;
+  --success-foreground: #FFFFFF;
+  --warning: #F59E0B;
+  --warning-foreground: #F0F4F8;
   --border: #2D3748;
   --input: #2D3748;
   --ring: #00BCD4;
@@ -93,6 +101,10 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);

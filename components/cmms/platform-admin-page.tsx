@@ -17,13 +17,13 @@ import {
   Building2, Plus, Search, Eye, EyeOff, Pencil, MoreVertical, Power, ShieldAlert,
   KeyRound, ScrollText, ArrowLeft, Save, Send, ChevronRight, Users, Calendar,
   Globe, Mail, Phone, Clock, X, Copy, CheckCircle2, AlertTriangle, Ban,
-  FileText, Filter, Shield, Layers, Lock, GripVertical, Settings2,
-  Menu as MenuIcon, ChevronDown, UserPlus, Trash2
+  FileText, Filter, Shield, Lock, Settings2,
+  ChevronDown, UserPlus, Trash2
 } from "lucide-react"
 import {
-  mockTenants, mockAuditLogs, mockOrganizations, mockUsers, mockRoles, mockPrivileges, mockMenus,
-  seededResources, seededActions,
-  type Tenant, type TenantStatus, type AuditLog, type Organization, type TenantUser, type Role, type Privilege, type MenuItem as MenuItemType,
+  mockTenants, mockAuditLogs, mockOrganizations, mockUsers, mockRoles, mockRolePermissions,
+  seededResources, seededActions, getTopLevelResources, getResourceChildren,
+  type Tenant, type TenantStatus, type AuditLog, type Organization, type TenantUser, type Role,
   type ResourceDef, type ActionDef
 } from "@/lib/rbac-data"
 
@@ -1143,14 +1143,27 @@ function RoleManagement() {
             </div>
           </div>
           <div className="mb-5">
-            <Label className="text-sm font-bold text-foreground mb-3 block">Privileges (multi-select)</Label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {mockPrivileges.map(p => (
-                <label key={p.id} className="flex items-start gap-3 p-3 rounded-lg border border-border hover:border-[#00BCD4]/40 cursor-pointer transition-colors">
-                  <Checkbox className="mt-0.5" defaultChecked={editRole?.privileges.includes(p.id)} />
-                  <div><p className="text-sm font-semibold text-foreground">{p.name}</p><p className="text-xs text-muted-foreground">{p.description}</p></div>
-                </label>
-              ))}
+            <Label className="text-sm font-bold text-foreground mb-3 block">Permission Matrix (Resource + Actions)</Label>
+            <p className="text-xs text-muted-foreground mb-3">Permissions are assigned directly on the role. Select which actions this role can perform on each resource.</p>
+            <div className="border border-border rounded-xl overflow-hidden overflow-x-auto">
+              <table className="w-full">
+                <thead><tr className="border-b border-border bg-muted/30">
+                  <th className="text-left py-3 px-4 font-bold text-foreground text-sm w-48">Resource</th>
+                  {seededActions.slice(0, 8).map(a => <th key={a.id} className="text-center py-3 px-2 font-bold text-foreground text-xs">{a.actionName}</th>)}
+                </tr></thead>
+                <tbody>
+                  {seededResources.filter(r => r.parentId !== null).map(res => (
+                    <tr key={res.id} className="border-b border-border last:border-0 hover:bg-muted/20">
+                      <td className="py-3 px-4 text-sm font-semibold text-foreground">{res.resourceName}</td>
+                      {seededActions.slice(0, 8).map(a => (
+                        <td key={a.id} className="text-center py-3 px-2">
+                          <Checkbox checked={editRole ? mockRolePermissions.some(rp => rp.roleId === editRole.id && rp.resourceId === res.id && rp.actionId === a.id && rp.isAllowed) : false} className="mx-auto" />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
           <div className="flex items-center gap-3 pt-5 border-t border-border">
@@ -1182,7 +1195,7 @@ function RoleManagement() {
               </div>
               <p className="text-xs text-muted-foreground mb-3">{role.description}</p>
               <div className="flex items-center justify-between">
-                <div className="flex flex-wrap gap-1">{role.privileges.slice(0, 3).map(pId => { const p = mockPrivileges.find(pr => pr.id === pId); return <Badge key={pId} variant="outline" className="text-[10px] font-medium">{p?.name || pId}</Badge> })}{role.privileges.length > 3 && <Badge variant="outline" className="text-[10px] font-medium">+{role.privileges.length - 3}</Badge>}</div>
+                <Badge variant="outline" className="text-[10px] font-medium border-[#00BCD4]/30 text-[#00BCD4]">{mockRolePermissions.filter(rp => rp.roleId === role.id && rp.isAllowed).length} permissions</Badge>
                 <span className="text-xs text-muted-foreground font-medium">{role.assignedUsersCount} users</span>
               </div>
             </CardContent>
@@ -1193,176 +1206,18 @@ function RoleManagement() {
   )
 }
 
-// =====================================
-// SUB-SECTION: Privilege Management (embedded)
-// =====================================
-function PrivilegeManagement() {
-  const [view, setView] = useState<"list" | "form">("list")
-  const [editPriv, setEditPriv] = useState<Privilege | null>(null)
-  const [search, setSearch] = useState("")
 
-  const filtered = mockPrivileges.filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.code.toLowerCase().includes(search.toLowerCase()))
-
-  if (view === "form") {
-    return (
-      <div className="flex flex-col gap-6">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={() => { setView("list"); setEditPriv(null) }} className="text-muted-foreground hover:text-foreground text-sm font-semibold"><ArrowLeft className="w-4 h-4 mr-2" /> Back</Button>
-          <div className="h-6 w-px bg-border" />
-          <h3 className="text-xl font-extrabold text-foreground">{editPriv ? `Edit: ${editPriv.name}` : "Create Privilege"}</h3>
-        </div>
-        <Card className="border border-border shadow-sm"><CardContent className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
-            <div className="flex flex-col gap-2"><Label className="text-sm font-bold text-foreground">Privilege Name <span className="text-[#EF4444]">*</span></Label><Input className="h-10" placeholder="e.g. Asset Management" defaultValue={editPriv?.name} /></div>
-            <div className="flex flex-col gap-2"><Label className="text-sm font-bold text-foreground">Code <span className="text-[#EF4444]">*</span></Label><Input className="h-10 font-mono" placeholder="e.g. ASSET_MGMT" defaultValue={editPriv?.code} /></div>
-            <div className="flex flex-col gap-2 md:col-span-2"><Label className="text-sm font-bold text-foreground">Description</Label><Textarea className="min-h-[60px]" defaultValue={editPriv?.description} /></div>
-          </div>
-          <div className="mb-5">
-            <Label className="text-sm font-bold text-foreground mb-3 block">Mapped Menus</Label>
-            <div className="flex flex-wrap gap-2">
-              {editPriv?.menus.map(m => <Badge key={m} variant="outline" className="text-sm font-medium border-[#00BCD4]/30 text-[#00BCD4] bg-[#00BCD4]/5 px-3 py-1">{m}</Badge>) || <p className="text-sm text-muted-foreground">No menus mapped yet</p>}
-            </div>
-          </div>
-          <div className="mb-5">
-            <Label className="text-sm font-bold text-foreground mb-3 block">Permissions (Resource + Actions)</Label>
-            <div className="border border-border rounded-xl overflow-hidden">
-              <table className="w-full">
-                <thead><tr className="border-b border-border bg-muted/30">
-                  <th className="text-left py-3 px-4 font-bold text-foreground text-sm w-48">Resource</th>
-                  {seededActions.slice(0, 8).map(a => <th key={a.code} className="text-center py-3 px-2 font-bold text-foreground text-xs">{a.name}</th>)}
-                </tr></thead>
-                <tbody>
-                  {(editPriv?.permissions || []).map(perm => (
-                    <tr key={perm.resource} className="border-b border-border last:border-0 hover:bg-muted/20">
-                      <td className="py-3 px-4 text-sm font-semibold text-foreground">{seededResources.find(r => r.code === perm.resource)?.name || perm.resource}</td>
-                      {seededActions.slice(0, 8).map(a => (
-                        <td key={a.code} className="text-center py-3 px-2">
-                          <Checkbox checked={perm.actions.includes(a.code)} className="mx-auto" />
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 pt-5 border-t border-border">
-            <Button className="text-white border-0 text-sm font-semibold h-10 px-5" style={{ background: "linear-gradient(135deg, #00BCD4, #00838F)" }} onClick={() => { setView("list"); setEditPriv(null) }}><Save className="w-4 h-4 mr-1.5" /> Save</Button>
-            <Button variant="outline" className="text-sm font-semibold h-10 px-4" onClick={() => { setView("list"); setEditPriv(null) }}>Cancel</Button>
-          </div>
-        </CardContent></Card>
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div><h3 className="text-xl font-extrabold text-foreground">Privileges</h3><p className="text-sm text-muted-foreground mt-0.5">{mockPrivileges.length} privilege bundles</p></div>
-        <Button className="text-white border-0 text-sm font-semibold h-10 px-5" style={{ background: "linear-gradient(135deg, #00BCD4, #00838F)" }} onClick={() => setView("form")}><Plus className="w-4 h-4 mr-1.5" /> Create Privilege</Button>
-      </div>
-      <div className="relative max-w-md"><Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><Input placeholder="Search privileges..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10 h-10" /></div>
-      <Card className="border border-border shadow-sm"><div className="overflow-x-auto"><table className="w-full"><thead><tr className="border-b border-border" style={{ background: "rgba(0,188,212,0.03)" }}>
-        <th className="text-left py-4 px-5 font-bold text-foreground text-sm">Privilege</th>
-        <th className="text-left py-4 px-5 font-bold text-foreground text-sm">Code</th>
-        <th className="text-left py-4 px-5 font-bold text-foreground text-sm">Menus</th>
-        <th className="text-left py-4 px-5 font-bold text-foreground text-sm">Permissions</th>
-        <th className="text-left py-4 px-5 font-bold text-foreground text-sm">Status</th>
-        <th className="text-right py-4 px-5 font-bold text-foreground text-sm">Actions</th>
-      </tr></thead><tbody>
-        {filtered.map(p => (
-          <tr key={p.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => { setEditPriv(p); setView("form") }}>
-            <td className="py-4 px-5"><div className="flex items-center gap-3"><div className="w-9 h-9 rounded-lg bg-[#00BCD4]/10 flex items-center justify-center"><Layers className="w-4 h-4 text-[#00BCD4]" /></div><div><p className="text-sm font-bold text-foreground">{p.name}</p><p className="text-xs text-muted-foreground">{p.description.substring(0, 50)}...</p></div></div></td>
-            <td className="py-4 px-5 text-sm font-mono text-muted-foreground">{p.code}</td>
-            <td className="py-4 px-5"><div className="flex flex-wrap gap-1">{p.menus.slice(0, 2).map(m => <Badge key={m} variant="outline" className="text-[10px]">{m}</Badge>)}{p.menus.length > 2 && <Badge variant="outline" className="text-[10px]">+{p.menus.length - 2}</Badge>}</div></td>
-            <td className="py-4 px-5 text-sm font-semibold text-foreground">{p.permissions.length} resources</td>
-            <td className="py-4 px-5"><Badge variant="outline" className="text-xs font-semibold border-[#10B981]/30 text-[#10B981] bg-[#10B981]/10">{p.status}</Badge></td>
-            <td className="py-4 px-5 text-right"><Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-[#00BCD4]"><Pencil className="w-4 h-4" /></Button></td>
-          </tr>
-        ))}
-      </tbody></table></div></Card>
-    </div>
-  )
-}
-
-// =====================================
-// SUB-SECTION: Menu Builder (embedded)
-// =====================================
-function MenuBuilder() {
-  const [expandedMenus, setExpandedMenus] = useState<string[]>(["M-002", "M-006"])
-
-  const topMenus = mockMenus.filter(m => !m.parentId)
-  const toggleExpand = (id: string) => setExpandedMenus(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
-
-  return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div><h3 className="text-xl font-extrabold text-foreground">Menu Builder</h3><p className="text-sm text-muted-foreground mt-0.5">Configure navigation menu structure and privilege mapping</p></div>
-        <Button className="text-white border-0 text-sm font-semibold h-10 px-5" style={{ background: "linear-gradient(135deg, #00BCD4, #00838F)" }}><Plus className="w-4 h-4 mr-1.5" /> Add Menu Item</Button>
-      </div>
-      <Card className="border border-border shadow-sm"><CardContent className="p-6">
-        <div className="flex flex-col gap-1">
-          {topMenus.map(menu => {
-            const isExpanded = expandedMenus.includes(menu.id)
-            const hasChildren = menu.children && menu.children.length > 0
-            return (
-              <div key={menu.id}>
-                <div className="flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-muted/30 transition-colors group">
-                  <GripVertical className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 cursor-grab" />
-                  {hasChildren ? (
-                    <button onClick={() => toggleExpand(menu.id)} className="text-muted-foreground hover:text-foreground">
-                      {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                    </button>
-                  ) : <div className="w-4" />}
-                  <div className="w-8 h-8 rounded-lg bg-[#00BCD4]/10 flex items-center justify-center"><MenuIcon className="w-4 h-4 text-[#00BCD4]" /></div>
-                  <div className="flex-1">
-                    <p className="text-sm font-bold text-foreground">{menu.title}</p>
-                    <p className="text-xs text-muted-foreground font-mono">{menu.route}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className={cn("text-xs font-semibold", menu.status === "Active" ? "border-[#10B981]/30 text-[#10B981] bg-[#10B981]/10" : "border-[#EF4444]/30 text-[#EF4444]")}>{menu.status}</Badge>
-                    <span className="text-xs text-muted-foreground">Order: {menu.sortOrder}</span>
-                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-[#00BCD4] opacity-0 group-hover:opacity-100"><Pencil className="w-3.5 h-3.5" /></Button>
-                  </div>
-                </div>
-                {hasChildren && isExpanded && (
-                  <div className="ml-14 border-l-2 border-[#00BCD4]/15 pl-4">
-                    {menu.children!.map(child => (
-                      <div key={child.id} className="flex items-center gap-3 py-2.5 px-4 rounded-lg hover:bg-muted/30 transition-colors group">
-                        <GripVertical className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 cursor-grab" />
-                        <div className="w-6 h-6 rounded bg-muted flex items-center justify-center"><MenuIcon className="w-3 h-3 text-muted-foreground" /></div>
-                        <div className="flex-1">
-                          <p className="text-sm font-semibold text-foreground">{child.title}</p>
-                          <p className="text-xs text-muted-foreground font-mono">{child.route}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className={cn("text-xs font-semibold", child.status === "Active" ? "border-[#10B981]/30 text-[#10B981] bg-[#10B981]/10" : "border-[#EF4444]/30 text-[#EF4444]")}>{child.status}</Badge>
-                          <span className="text-xs text-muted-foreground">Order: {child.sortOrder}</span>
-                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground hover:text-[#00BCD4] opacity-0 group-hover:opacity-100"><Pencil className="w-3 h-3" /></Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      </CardContent></Card>
-    </div>
-  )
-}
 
 // =====================================
 // SUB-SECTION: Resource & Action Catalog (embedded)
 // =====================================
-function ResourceCatalog() {
+function ResourceCatalogEmbedded() {
   const [catalogTab, setCatalogTab] = useState<"resources" | "actions">("resources")
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <div><h3 className="text-xl font-extrabold text-foreground">Resource & Action Catalog</h3><p className="text-sm text-muted-foreground mt-0.5">System-seeded resources and actions used in privilege definitions</p></div>
+        <div><h3 className="text-xl font-extrabold text-foreground">Resource & Action Catalog</h3><p className="text-sm text-muted-foreground mt-0.5">Resources and actions used in role permission definitions</p></div>
       </div>
       <div className="flex items-center gap-1 p-1 rounded-xl bg-card border border-border w-fit">
         {[{ id: "resources" as const, label: "Resources", count: seededResources.length }, { id: "actions" as const, label: "Actions", count: seededActions.length }].map(tab => (
@@ -1376,16 +1231,25 @@ function ResourceCatalog() {
       </div>
       <Card className="border border-border shadow-sm"><div className="overflow-x-auto"><table className="w-full"><thead><tr className="border-b border-border" style={{ background: "rgba(0,188,212,0.03)" }}>
         <th className="text-left py-4 px-5 font-bold text-foreground text-sm">Name</th>
-        <th className="text-left py-4 px-5 font-bold text-foreground text-sm">Code</th>
+        <th className="text-left py-4 px-5 font-bold text-foreground text-sm">Key / Code</th>
         <th className="text-left py-4 px-5 font-bold text-foreground text-sm">Description</th>
-        <th className="text-left py-4 px-5 font-bold text-foreground text-sm">Type</th>
+        {catalogTab === "resources" && <th className="text-left py-4 px-5 font-bold text-foreground text-sm">Parent</th>}
+        <th className="text-left py-4 px-5 font-bold text-foreground text-sm">Status</th>
       </tr></thead><tbody>
-        {(catalogTab === "resources" ? seededResources : seededActions).map(item => (
-          <tr key={item.code} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
-            <td className="py-4 px-5 text-sm font-bold text-foreground">{item.name}</td>
-            <td className="py-4 px-5 text-sm font-mono text-muted-foreground">{item.code}</td>
-            <td className="py-4 px-5 text-sm text-muted-foreground">{item.description}</td>
-            <td className="py-4 px-5"><Badge variant="outline" className="text-xs font-semibold border-[#00BCD4]/30 text-[#00BCD4] bg-[#00BCD4]/10">{catalogTab === "resources" ? "Resource" : "Action"}</Badge></td>
+        {catalogTab === "resources" ? seededResources.map(r => (
+          <tr key={r.id} className={cn("border-b border-border last:border-0 hover:bg-muted/30 transition-colors", !r.parentId && "bg-muted/20 font-bold")}>
+            <td className="py-4 px-5 text-sm font-bold text-foreground">{r.parentId ? <span className="pl-4">{r.resourceName}</span> : r.resourceName}</td>
+            <td className="py-4 px-5 text-sm font-mono text-muted-foreground">{r.resourceKey}</td>
+            <td className="py-4 px-5 text-sm text-muted-foreground">{r.description}</td>
+            <td className="py-4 px-5 text-sm text-muted-foreground">{r.parentId ? seededResources.find(p => p.id === r.parentId)?.resourceName || "-" : <Badge variant="outline" className="text-[10px] font-semibold">Group</Badge>}</td>
+            <td className="py-4 px-5"><Badge variant="outline" className={cn("text-xs font-semibold", r.isActive ? "border-[#10B981]/30 text-[#10B981] bg-[#10B981]/10" : "border-[#EF4444]/30 text-[#EF4444] bg-[#EF4444]/10")}>{r.isActive ? "Active" : "Inactive"}</Badge></td>
+          </tr>
+        )) : seededActions.map(a => (
+          <tr key={a.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+            <td className="py-4 px-5 text-sm font-bold text-foreground">{a.actionName}</td>
+            <td className="py-4 px-5 text-sm font-mono text-muted-foreground">{a.actionKey}</td>
+            <td className="py-4 px-5 text-sm text-muted-foreground">{a.description}</td>
+            <td className="py-4 px-5"><Badge variant="outline" className="text-xs font-semibold border-[#00BCD4]/30 text-[#00BCD4] bg-[#00BCD4]/10">Action</Badge></td>
           </tr>
         ))}
       </tbody></table></div></Card>
@@ -1394,7 +1258,7 @@ function ResourceCatalog() {
 }
 
 // == MAIN PLATFORM ADMIN PAGE ==
-type PlatformTab = "tenants" | "orgs" | "users" | "roles" | "privileges" | "menus" | "catalog" | "audit"
+type PlatformTab = "tenants" | "orgs" | "users" | "roles" | "catalog" | "audit"
 
 export function PlatformAdminPage() {
   const [view, setView] = useState<"list" | "create" | "detail" | "audit">("list")
@@ -1406,9 +1270,7 @@ export function PlatformAdminPage() {
     { id: "orgs", label: "Organizations", icon: Building2, section: "Tenant Admin" },
     { id: "users", label: "Users", icon: Users, section: "Tenant Admin" },
     { id: "roles", label: "Roles", icon: Shield, section: "Tenant Admin" },
-    { id: "privileges", label: "Privileges", icon: Layers, section: "Tenant Admin" },
-    { id: "menus", label: "Menus", icon: MenuIcon, section: "Tenant Admin" },
-    { id: "catalog", label: "Catalog", icon: Settings2, section: "Tenant Admin" },
+    { id: "catalog", label: "Resources & Actions", icon: Settings2, section: "Tenant Admin" },
     { id: "audit", label: "Audit Logs", icon: ScrollText, section: "Platform" },
   ]
 
@@ -1423,9 +1285,7 @@ export function PlatformAdminPage() {
       case "orgs": return <OrgManagement />
       case "users": return <UserManagement />
       case "roles": return <RoleManagement />
-      case "privileges": return <PrivilegeManagement />
-      case "menus": return <MenuBuilder />
-      case "catalog": return <ResourceCatalog />
+      case "catalog": return <ResourceCatalogEmbedded />
       case "audit": return <AuditLogsView logs={mockAuditLogs} />
       default: return null
     }
