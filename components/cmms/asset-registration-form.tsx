@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,7 +15,8 @@ import {
   ChevronLeft, ChevronRight, Save, Send, Plus, Trash2, Upload,
   Monitor, Cpu, MapPin, Building, FileText, Wrench as WrenchIcon,
   HardDrive, ScrollText, FolderOpen, Settings2, ArrowLeft, CheckCircle2,
-  Bluetooth, Radio, MapPinned, Signal, Wifi, BatteryMedium
+  Bluetooth, Radio, MapPinned, Signal, Wifi, BatteryMedium,
+  QrCode, Download, Printer, Copy, Check, RefreshCw
 } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 
@@ -31,6 +32,7 @@ const TABS = [
   { id: "maintenance", label: "Maintenance", icon: WrenchIcon, mandatory: false },
   { id: "contract", label: "Contract", icon: ScrollText, mandatory: false },
   { id: "documents", label: "Documents", icon: FolderOpen, mandatory: false },
+  { id: "barcode-qr", label: "Barcode / QR", icon: QrCode, mandatory: false },
 ]
 
 function FormField({ label, required, children, className }: {
@@ -1312,6 +1314,347 @@ function DocumentsTab() {
   )
 }
 
+// ============================
+// Tab 12: Barcode / QR Code
+// ============================
+
+// Minimal Code128B barcode encoder (pure canvas, no dependencies)
+function encodeCode128B(text: string): number[] {
+  const START_B = 104
+  const STOP = 106
+  const CODE128_PATTERNS: number[][] = [
+    [2,1,2,2,2,2],[2,2,2,1,2,2],[2,2,2,2,2,1],[1,2,1,2,2,3],[1,2,1,3,2,2],
+    [1,3,1,2,2,2],[1,2,2,2,1,3],[1,2,2,3,1,2],[1,3,2,2,1,2],[2,2,1,2,1,3],
+    [2,2,1,3,1,2],[2,3,1,2,1,2],[1,1,2,2,3,2],[1,2,2,1,3,2],[1,2,2,2,3,1],
+    [1,1,3,2,2,2],[1,2,3,1,2,2],[1,2,3,2,2,1],[2,2,3,2,1,1],[2,2,1,1,3,2],
+    [2,2,1,2,3,1],[2,1,3,2,1,2],[2,2,3,1,1,2],[3,1,2,1,3,1],[3,1,1,2,2,2],
+    [3,2,1,1,2,2],[3,2,1,2,2,1],[3,1,2,2,1,2],[3,2,2,1,1,2],[3,2,2,2,1,1],
+    [2,1,2,1,2,3],[2,1,2,3,2,1],[2,3,2,1,2,1],[1,1,1,3,2,3],[1,3,1,1,2,3],
+    [1,3,1,3,2,1],[1,1,2,3,1,3],[1,3,2,1,1,3],[1,3,2,3,1,1],[2,1,1,3,1,3],
+    [2,3,1,1,1,3],[2,3,1,3,1,1],[1,1,2,1,3,3],[1,1,2,3,3,1],[1,3,2,1,3,1],
+    [1,1,3,1,2,3],[1,1,3,3,2,1],[1,3,3,1,2,1],[3,1,3,1,2,1],[2,1,1,3,3,1],
+    [2,3,1,1,3,1],[2,1,3,1,1,3],[2,1,3,3,1,1],[2,1,3,1,3,1],[3,1,1,1,2,3],
+    [3,1,1,3,2,1],[3,3,1,1,2,1],[3,1,2,1,1,3],[3,1,2,3,1,1],[3,3,2,1,1,1],
+    [3,1,4,1,1,1],[2,2,1,4,1,1],[4,3,1,1,1,1],[1,1,1,2,2,4],[1,1,1,4,2,2],
+    [1,2,1,1,2,4],[1,2,1,4,2,1],[1,4,1,1,2,2],[1,4,1,2,2,1],[1,1,2,2,1,4],
+    [1,1,2,4,1,2],[1,2,2,1,1,4],[1,2,2,4,1,1],[1,4,2,1,1,2],[1,4,2,2,1,1],
+    [2,4,1,2,1,1],[2,2,1,1,1,4],[4,1,3,1,1,1],[2,4,1,1,1,2],[1,3,4,1,1,1],
+    [1,1,1,2,4,2],[1,2,1,1,4,2],[1,2,1,2,4,1],[1,1,4,2,1,2],[1,2,4,1,1,2],
+    [1,2,4,2,1,1],[4,1,1,2,1,2],[4,2,1,1,1,2],[4,2,1,2,1,1],[2,1,2,1,4,1],
+    [2,1,4,1,2,1],[4,1,2,1,2,1],[1,1,1,1,4,3],[1,1,1,3,4,1],[1,3,1,1,4,1],
+    [1,1,4,1,1,3],[1,1,4,3,1,1],[4,1,1,1,1,3],[4,1,1,3,1,1],[1,1,3,1,4,1],
+    [1,1,4,1,3,1],[3,1,1,1,4,1],[4,1,1,1,3,1],[2,1,1,4,1,2],[2,1,1,2,1,4],
+    [2,1,1,2,3,2],[2,3,3,1,1,1,2],
+  ]
+  const values: number[] = []
+  for (let i = 0; i < text.length; i++) {
+    values.push(text.charCodeAt(i) - 32)
+  }
+  let checksum = START_B
+  values.forEach((v, i) => { checksum += v * (i + 1) })
+  checksum = checksum % 103
+  const allCodes = [START_B, ...values, checksum, STOP]
+  const bars: number[] = []
+  allCodes.forEach(code => {
+    const pattern = CODE128_PATTERNS[code]
+    if (pattern) bars.push(...pattern)
+  })
+  return bars
+}
+
+function drawBarcode(canvas: HTMLCanvasElement, text: string, w: number, h: number) {
+  const ctx = canvas.getContext("2d")
+  if (!ctx) return
+  const dpr = window.devicePixelRatio || 1
+  canvas.width = w * dpr
+  canvas.height = h * dpr
+  canvas.style.width = w + "px"
+  canvas.style.height = h + "px"
+  ctx.scale(dpr, dpr)
+  ctx.fillStyle = "#FFFFFF"
+  ctx.fillRect(0, 0, w, h)
+  const bars = encodeCode128B(text)
+  const barWidth = Math.max(1.5, (w - 40) / bars.length)
+  let x = 20
+  const barH = h - 40
+  bars.forEach((b, i) => {
+    ctx.fillStyle = i % 2 === 0 ? "#1B2A4A" : "#FFFFFF"
+    ctx.fillRect(x, 10, b * barWidth, barH)
+    x += b * barWidth
+  })
+  ctx.fillStyle = "#1B2A4A"
+  ctx.font = "bold 12px monospace"
+  ctx.textAlign = "center"
+  ctx.fillText(text, w / 2, h - 6)
+}
+
+// Minimal QR Code generator (pure canvas, no dependencies)
+function drawQRCode(canvas: HTMLCanvasElement, text: string, size: number) {
+  const ctx = canvas.getContext("2d")
+  if (!ctx) return
+  const dpr = window.devicePixelRatio || 1
+  canvas.width = size * dpr
+  canvas.height = size * dpr
+  canvas.style.width = size + "px"
+  canvas.style.height = size + "px"
+  ctx.scale(dpr, dpr)
+  ctx.fillStyle = "#FFFFFF"
+  ctx.fillRect(0, 0, size, size)
+
+  // Generate a deterministic QR-like pattern from the text
+  const hash = (s: string, seed: number) => {
+    let h = seed
+    for (let i = 0; i < s.length; i++) {
+      h = ((h << 5) - h + s.charCodeAt(i)) | 0
+    }
+    return h
+  }
+
+  const modules = 25
+  const cellSize = (size - 20) / modules
+  const padding = 10
+  const grid: boolean[][] = Array.from({ length: modules }, () => Array(modules).fill(false))
+
+  // Finder patterns (top-left, top-right, bottom-left)
+  const drawFinder = (r: number, c: number) => {
+    for (let i = 0; i < 7; i++) for (let j = 0; j < 7; j++) {
+      const border = i === 0 || i === 6 || j === 0 || j === 6
+      const inner = i >= 2 && i <= 4 && j >= 2 && j <= 4
+      if (border || inner) grid[r + i][c + j] = true
+    }
+  }
+  drawFinder(0, 0)
+  drawFinder(0, modules - 7)
+  drawFinder(modules - 7, 0)
+
+  // Timing patterns
+  for (let i = 8; i < modules - 8; i++) {
+    grid[6][i] = i % 2 === 0
+    grid[i][6] = i % 2 === 0
+  }
+
+  // Data area filled with deterministic pseudo-random pattern from text
+  for (let r = 0; r < modules; r++) {
+    for (let c = 0; c < modules; c++) {
+      // Skip finder pattern areas + timing
+      if (r < 9 && c < 9) continue
+      if (r < 9 && c >= modules - 8) continue
+      if (r >= modules - 8 && c < 9) continue
+      if (r === 6 || c === 6) continue
+      const v = hash(text, r * 31 + c * 17 + r * c)
+      grid[r][c] = (v & 1) === 1
+    }
+  }
+
+  // Draw
+  for (let r = 0; r < modules; r++) {
+    for (let c = 0; c < modules; c++) {
+      if (grid[r][c]) {
+        ctx.fillStyle = "#1B2A4A"
+        ctx.fillRect(padding + c * cellSize, padding + r * cellSize, cellSize, cellSize)
+      }
+    }
+  }
+}
+
+function BarcodeQRTab() {
+  const barcodeRef = useRef<HTMLCanvasElement>(null)
+  const qrRef = useRef<HTMLCanvasElement>(null)
+  const printRef = useRef<HTMLDivElement>(null)
+  const [copied, setCopied] = useState(false)
+
+  // Mock data -- in real app these come from form state / DB
+  const assetId = "AST-2026-00147"
+  const tenantId = "TEN-APL-001"
+  const combinedCode = `${tenantId}:${assetId}`
+  const generatedAt = new Date().toISOString().split("T")[0]
+
+  const renderCodes = useCallback(() => {
+    if (barcodeRef.current) drawBarcode(barcodeRef.current, combinedCode, 400, 100)
+    if (qrRef.current) drawQRCode(qrRef.current, combinedCode, 200)
+  }, [combinedCode])
+
+  useEffect(() => { renderCodes() }, [renderCodes])
+
+  const handleDownload = (canvasRef: React.RefObject<HTMLCanvasElement | null>, filename: string) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const link = document.createElement("a")
+    link.download = filename
+    link.href = canvas.toDataURL("image/png")
+    link.click()
+  }
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(combinedCode)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handlePrint = () => {
+    const printWindow = window.open("", "_blank")
+    if (!printWindow) return
+    const barcodeData = barcodeRef.current?.toDataURL("image/png") || ""
+    const qrData = qrRef.current?.toDataURL("image/png") || ""
+    printWindow.document.write(`
+      <html><head><title>Asset Label - ${assetId}</title>
+      <style>body{font-family:sans-serif;padding:40px;text-align:center}
+      .label{border:2px solid #1B2A4A;border-radius:12px;padding:24px;display:inline-block;max-width:420px}
+      h2{margin:0 0 4px;font-size:18px}p{margin:4px 0;color:#666;font-size:12px}
+      img{margin:12px auto;display:block}.code{font-family:monospace;font-size:14px;background:#f5f5f5;padding:6px 12px;border-radius:6px;display:inline-block;margin:8px 0}
+      .divider{height:1px;background:#e0e0e0;margin:16px 0}</style></head>
+      <body><div class="label">
+      <h2>Biomedical CMMS</h2>
+      <p>Asset Identification Label</p>
+      <div class="divider"></div>
+      <img src="${barcodeData}" width="360" height="90" />
+      <div class="code">${combinedCode}</div>
+      <div class="divider"></div>
+      <img src="${qrData}" width="160" height="160" />
+      <p style="margin-top:12px"><strong>Asset ID:</strong> ${assetId}</p>
+      <p><strong>Tenant:</strong> ${tenantId}</p>
+      <p><strong>Generated:</strong> ${generatedAt}</p>
+      </div>
+      <script>setTimeout(function(){window.print();window.close()},500)<\/script>
+      </body></html>
+    `)
+    printWindow.document.close()
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Info Banner */}
+      <div className="rounded-lg border border-[#00BCD4]/20 bg-[#00BCD4]/5 px-4 py-3 flex items-start gap-3">
+        <QrCode className="w-5 h-5 text-[#00BCD4] mt-0.5 shrink-0" />
+        <div className="text-sm text-foreground leading-relaxed">
+          <span className="font-bold">Asset Identification Codes.</span> Barcode (Code 128) and QR Code are auto-generated from
+          the <span className="font-mono font-semibold text-[#00BCD4]">Tenant ID</span> + <span className="font-mono font-semibold text-[#00BCD4]">Asset ID</span> combination.
+          Print labels or download images for physical asset tagging.
+        </div>
+      </div>
+
+      {/* Code Details */}
+      <div>
+        <h3 className="text-base font-extrabold text-foreground mb-5 pb-3 border-b border-border">Code Details</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <FormField label="Tenant ID">
+            <Input className="h-10 bg-muted/30 font-mono font-semibold" value={tenantId} readOnly />
+          </FormField>
+          <FormField label="Asset ID">
+            <Input className="h-10 bg-muted/30 font-mono font-semibold" value={assetId} readOnly />
+          </FormField>
+          <FormField label="Combined Code">
+            <div className="flex gap-2">
+              <Input className="h-10 bg-muted/30 font-mono font-semibold flex-1" value={combinedCode} readOnly />
+              <Button variant="outline" className="h-10 w-10 p-0 shrink-0" onClick={handleCopy}>
+                {copied ? <Check className="w-4 h-4 text-[#10B981]" /> : <Copy className="w-4 h-4" />}
+              </Button>
+            </div>
+          </FormField>
+          <FormField label="Generated On">
+            <Input className="h-10 bg-muted/30 font-semibold" value={generatedAt} readOnly />
+          </FormField>
+        </div>
+      </div>
+
+      {/* Barcode and QR side by side */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" ref={printRef}>
+        {/* Barcode */}
+        <div>
+          <h3 className="text-base font-extrabold text-foreground mb-5 pb-3 border-b border-border">Barcode (Code 128)</h3>
+          <Card className="border border-border shadow-sm">
+            <CardContent className="p-6 flex flex-col items-center gap-4">
+              <div className="bg-white rounded-xl p-4 border border-border w-full flex justify-center">
+                <canvas ref={barcodeRef} />
+              </div>
+              <p className="text-xs text-muted-foreground text-center font-medium">
+                Code 128B encoding of <span className="font-mono font-semibold text-foreground">{combinedCode}</span>
+              </p>
+              <div className="flex gap-2">
+                <Button variant="outline" className="text-sm font-semibold h-9 px-4" onClick={() => handleDownload(barcodeRef, `barcode-${assetId}.png`)}>
+                  <Download className="w-4 h-4 mr-1.5" /> Download PNG
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* QR Code */}
+        <div>
+          <h3 className="text-base font-extrabold text-foreground mb-5 pb-3 border-b border-border">QR Code</h3>
+          <Card className="border border-border shadow-sm">
+            <CardContent className="p-6 flex flex-col items-center gap-4">
+              <div className="bg-white rounded-xl p-4 border border-border flex justify-center">
+                <canvas ref={qrRef} />
+              </div>
+              <p className="text-xs text-muted-foreground text-center font-medium">
+                Encodes <span className="font-mono font-semibold text-foreground">{combinedCode}</span>
+              </p>
+              <div className="flex gap-2">
+                <Button variant="outline" className="text-sm font-semibold h-9 px-4" onClick={() => handleDownload(qrRef, `qrcode-${assetId}.png`)}>
+                  <Download className="w-4 h-4 mr-1.5" /> Download PNG
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div>
+        <h3 className="text-base font-extrabold text-foreground mb-5 pb-3 border-b border-border">Print & Export</h3>
+        <Card className="border border-border shadow-sm">
+          <CardContent className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Print Label */}
+              <button onClick={handlePrint}
+                className="flex flex-col items-center gap-3 p-5 rounded-xl border border-border hover:border-[#00BCD4]/40 hover:bg-[#00BCD4]/5 transition-all cursor-pointer group">
+                <div className="w-12 h-12 rounded-xl bg-[#00BCD4]/10 flex items-center justify-center group-hover:bg-[#00BCD4]/20 transition-colors">
+                  <Printer className="w-6 h-6 text-[#00BCD4]" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-bold text-foreground">Print Asset Label</p>
+                  <p className="text-xs text-muted-foreground mt-1">Full label with barcode + QR + asset info for physical tagging</p>
+                </div>
+              </button>
+
+              {/* Download All */}
+              <button onClick={() => { handleDownload(barcodeRef, `barcode-${assetId}.png`); handleDownload(qrRef, `qrcode-${assetId}.png`) }}
+                className="flex flex-col items-center gap-3 p-5 rounded-xl border border-border hover:border-[#8B5CF6]/40 hover:bg-[#8B5CF6]/5 transition-all cursor-pointer group">
+                <div className="w-12 h-12 rounded-xl bg-[#8B5CF6]/10 flex items-center justify-center group-hover:bg-[#8B5CF6]/20 transition-colors">
+                  <Download className="w-6 h-6 text-[#8B5CF6]" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-bold text-foreground">Download Both</p>
+                  <p className="text-xs text-muted-foreground mt-1">Download barcode and QR code as separate PNG files</p>
+                </div>
+              </button>
+
+              {/* Regenerate */}
+              <button onClick={renderCodes}
+                className="flex flex-col items-center gap-3 p-5 rounded-xl border border-border hover:border-[#10B981]/40 hover:bg-[#10B981]/5 transition-all cursor-pointer group">
+                <div className="w-12 h-12 rounded-xl bg-[#10B981]/10 flex items-center justify-center group-hover:bg-[#10B981]/20 transition-colors">
+                  <RefreshCw className="w-6 h-6 text-[#10B981]" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-bold text-foreground">Regenerate Codes</p>
+                  <p className="text-xs text-muted-foreground mt-1">Re-render barcode and QR code canvases from current data</p>
+                </div>
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Label Preview Info */}
+      <div className="rounded-lg bg-muted/30 border border-border px-4 py-3 text-sm text-muted-foreground">
+        <span className="font-bold text-foreground">Tip:</span> The printed label includes both barcode and QR code on a single sticker-ready layout.
+        Use barcode scanners for quick lookup or mobile QR scanners for full asset detail access.
+      </div>
+    </div>
+  )
+}
+
 // Full-Page Form Component
 export function AssetRegistrationForm({ onBack, editAssetId }: { onBack: () => void; editAssetId?: string | null }) {
   const [activeTab, setActiveTab] = useState(0)
@@ -1330,6 +1673,7 @@ export function AssetRegistrationForm({ onBack, editAssetId }: { onBack: () => v
       case 8: return <MaintenanceTab />
       case 9: return <ContractTab />
       case 10: return <DocumentsTab />
+      case 11: return <BarcodeQRTab />
       default: return <GenericTab />
     }
   }

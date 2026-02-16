@@ -6,7 +6,7 @@ import {
   Activity, LayoutDashboard, Wrench, ClipboardList, CalendarClock,
   Gauge, Package, BarChart3, ShieldCheck, Bell, Search, ChevronLeft,
   ChevronRight, LogOut, Settings, Menu, X, Building2, Users, Shield,
-  Layers, ScrollText, Lock, KeyRound, Cpu, Warehouse, ClipboardCheck, Building
+  Layers, ScrollText, Lock, KeyRound, Cpu, Warehouse, ClipboardCheck, Building, ArrowRightLeft
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -26,6 +26,7 @@ import { StoreMasterPage } from "./store-master-page"
 import { ItemMasterPage } from "./item-master-page"
 import { GrnPage } from "./grn-page"
 import { VendorRegistrationPage } from "./vendor-registration-page"
+import { AssetTransferPage } from "./asset-transfer-page"
 import { OrgSwitcher } from "./org-switcher"
 import type { LoginRole } from "./login-screen"
 
@@ -42,6 +43,7 @@ const navItems: NavItem[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, section: "Overview" },
   { id: "assets", label: "Asset Registration", icon: Wrench, section: "Asset Management" },
   { id: "devices", label: "Device Management", icon: Cpu, section: "Asset Management" },
+  { id: "asset-transfer", label: "Asset Transfer", icon: ArrowRightLeft, section: "Asset Management" },
   { id: "work-orders", label: "Work Orders", icon: ClipboardList, section: "Maintenance" },
   { id: "pm", label: "Preventive Maintenance", icon: CalendarClock, section: "Maintenance" },
   { id: "calibration", label: "Calibration", icon: Gauge, section: "Maintenance" },
@@ -77,6 +79,7 @@ export function AppShell({ onLogout, userRole = "user" }: { onLogout: () => void
         onEdit={(id) => { setEditAssetId(id); setShowAssetForm(true) }}
       />
       case "devices": return <DeviceManagementPage />
+      case "asset-transfer": return <AssetTransferPage />
       case "work-orders": return <WorkOrdersPage />
       case "pm": return <PreventiveMaintenancePage />
       case "calibration": return <CalibrationPage />
