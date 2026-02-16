@@ -12,6 +12,7 @@ import {
   CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from "recharts"
 import { workOrderTrends, equipmentStatusData, complianceScores, pmComplianceData, recentWorkOrders } from "@/lib/mock-data"
+import { ROUTES } from "@/constants/modules"
 
 function StatCard({ title, value, change, isUp, icon: Icon, color }: {
   title: string; value: string; change: string; isUp: boolean; icon: React.ElementType; color: string
@@ -52,7 +53,7 @@ const statusColors: Record<string, string> = {
   "Completed": "bg-[#D1FAE5] text-[#059669]",
 }
 
-export function DashboardPage({ onNavigate }: { onNavigate: (page: string) => void }) {
+export function DashboardPage({ onNavigate }: { onNavigate: (path: string) => void }) {
   return (
     <div className="flex flex-col gap-8">
       {/* Header */}
@@ -161,7 +162,7 @@ export function DashboardPage({ onNavigate }: { onNavigate: (page: string) => vo
       <Card className="border-0 shadow-sm">
         <CardHeader className="pb-3 px-7 pt-6 flex flex-row items-center justify-between">
           <CardTitle className="text-lg font-bold">Recent Work Orders</CardTitle>
-          <Button variant="ghost" size="sm" className="text-[#00BCD4] hover:text-[#00838F] text-sm font-semibold" onClick={() => onNavigate("work-orders")}>
+          <Button variant="ghost" size="sm" className="text-[#00BCD4] hover:text-[#00838F] text-sm font-semibold" onClick={() => onNavigate(ROUTES.WORK_ORDERS)}>
             View All <ArrowRight className="w-4 h-4 ml-1.5" />
           </Button>
         </CardHeader>
