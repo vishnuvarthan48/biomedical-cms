@@ -13,8 +13,10 @@ export const MODULES = {
   REPORTS: "reports",
   COMPLIANCE: "compliance",
   TENANT_ADMIN: "tenant-admin",
+  TICKET_REGISTRATION: "ticket-registration",
+  TICKET_MOBILE: "ticket-mobile",
   PLATFORM_ADMIN: "platform-admin",
-} as const
+} as const;
 
 export const ROUTES = {
   ROOT: "/",
@@ -34,5 +36,7 @@ export const ROUTES = {
   REPORTS: `/${MODULES.REPORTS}`,
   COMPLIANCE: `/${MODULES.COMPLIANCE}`,
   TENANT_ADMIN: `/${MODULES.TENANT_ADMIN}`,
+  TICKET_REGISTRATION: `/${MODULES.TICKET_REGISTRATION}`,
+  TICKET_MOBILE: `/${MODULES.TICKET_MOBILE}`,
   PLATFORM_ADMIN: `/${MODULES.PLATFORM_ADMIN}`,
-} as const
+} as const;
