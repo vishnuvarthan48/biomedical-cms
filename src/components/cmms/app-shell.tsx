@@ -28,6 +28,8 @@ import {
   KeyRound,
   Ticket,
   Smartphone,
+  Hash,
+  MapPin,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/src/components/ui/avatar";
 import { OrgSwitcher } from "@/src/components/cmms/org-switcher";
@@ -172,6 +174,22 @@ const navItems: NavItem[] = [
     icon: Shield,
     section: "Administration",
     path: ROUTES.TENANT_ADMIN,
+    roles: ["tenant-admin", "platform-admin"],
+  },
+  {
+    id: MODULES.LOCATIONS,
+    label: "Locations",
+    icon: MapPin,
+    section: "Administration",
+    path: ROUTES.LOCATIONS,
+    roles: ["tenant-admin", "platform-admin"],
+  },
+  {
+    id: MODULES.VOUCHER_SERIES,
+    label: "Voucher Series",
+    icon: Hash,
+    section: "Administration",
+    path: ROUTES.VOUCHER_SERIES,
     roles: ["tenant-admin", "platform-admin"],
   },
   {

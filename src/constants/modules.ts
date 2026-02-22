@@ -16,6 +16,8 @@ export const MODULES = {
   TICKET_REGISTRATION: "ticket-registration",
   TICKET_MOBILE: "ticket-mobile",
   PLATFORM_ADMIN: "platform-admin",
+  VOUCHER_SERIES: "voucher-series",
+  LOCATIONS: "locations",
 } as const;
 
 export const ROUTES = {
@@ -39,4 +41,6 @@ export const ROUTES = {
   TICKET_REGISTRATION: `/${MODULES.TICKET_REGISTRATION}`,
   TICKET_MOBILE: `/${MODULES.TICKET_MOBILE}`,
   PLATFORM_ADMIN: `/${MODULES.PLATFORM_ADMIN}`,
+  VOUCHER_SERIES: `/${MODULES.VOUCHER_SERIES}`,
+  LOCATIONS: `/${MODULES.LOCATIONS}`,
 } as const;

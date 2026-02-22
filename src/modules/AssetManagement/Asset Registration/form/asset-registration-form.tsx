@@ -632,9 +632,6 @@ function GenericTab() {
           <FormField label="Budget Code">
             <Input className="h-10" placeholder="e.g. CAPEX-BME-2026-001" />
           </FormField>
-          <FormField label="Purchase Date">
-            <Input type="date" className="h-10" />
-          </FormField>
         </div>
       </div>
 

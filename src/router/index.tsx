@@ -2,14 +2,6 @@ import { Navigate, createBrowserRouter } from "react-router-dom";
 import { AppShell } from "@/src/components/cmms/app-shell";
 import { ROUTES } from "@/src/constants/modules";
 import { useAuth } from "@/src/context/auth-context";
-
-function RoleAwareRedirect() {
-  const { userRole } = useAuth();
-  if (userRole === "cmms-enduser") {
-    return <Navigate to={ROUTES.TICKET_REGISTRATION} replace />;
-  }
-  return <Navigate to={ROUTES.DASHBOARD} replace />;
-}
 import { dashboardRoute } from "../routes/dashboard.route";
 import { assetsRoute } from "../routes/assets.route";
 import { assetsCreateRoute } from "../routes/assets-create.route";
@@ -29,6 +21,16 @@ import { tenantAdminRoute } from "../routes/tenant-admin.route";
 import { platformAdminRoute } from "../routes/platform-admin.route";
 import { ticketRegistrationRoute } from "../routes/ticket-registration.route";
 import { ticketMobileRoute } from "../routes/ticket-mobile.route";
+import { voucherSeriesRoute } from "../routes/voucher-series.route";
+import { locationsRoute } from "../routes/locations.route";
+
+function RoleAwareRedirect() {
+  const { userRole } = useAuth();
+  if (userRole === "cmms-enduser") {
+    return <Navigate to={ROUTES.TICKET_REGISTRATION} replace />;
+  }
+  return <Navigate to={ROUTES.DASHBOARD} replace />;
+}
 
 export const router = createBrowserRouter([
   {
@@ -55,6 +57,8 @@ export const router = createBrowserRouter([
       platformAdminRoute,
       ticketRegistrationRoute,
       ticketMobileRoute,
+      voucherSeriesRoute,
+      locationsRoute,
       { path: "*", element: <Navigate to={ROUTES.DASHBOARD} replace /> },
     ],
   },

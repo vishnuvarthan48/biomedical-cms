@@ -42,7 +42,6 @@ import {
   FileSpreadsheet,
   Trash2,
   ClipboardList,
-  Pencil,
   CheckCircle2,
   Clock,
   XCircle,
@@ -81,11 +80,21 @@ interface GrnLine {
   itemCode: string;
   itemName: string;
   partNumber: string;
+  itemType: "Consumable" | "Spare" | "Accessory";
   qtyReceived: number;
   uom: string;
+  // Consumable fields
   batchNo: string;
-  expiryDate: string;
+  lotNumber: string;
+  // Spare / Accessory fields
   serialNumbers: string;
+  // Common fields
+  mfgDate: string;
+  shelfLifeMonths: number;
+  expiryDate: string;
+  // Spare / Accessory warranty
+  warrantyMonths: number;
+  warrantyExpiry: string;
   unitRate: number;
   lineAmount: number;
   batchRequired: boolean;
@@ -177,6 +186,17 @@ const mockGrns: GrnHeader[] = [
   },
 ];
 
+// Default shelf life in months (from Store Master, fallback)
+const DEFAULT_SHELF_LIFE = 60;
+
+// Helper: calculate expiry/warranty expiry from mfg date + months
+function addMonths(dateStr: string, months: number): string {
+  if (!dateStr || !months) return "";
+  const d = new Date(dateStr);
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().split("T")[0];
+}
+
 // Biomedical items only
 const biomedItemLookup = [
   {
@@ -184,6 +204,8 @@ const biomedItemLookup = [
     name: "SpO2 Sensor Cable",
     partNumber: "PHI-SPO2-M1191B",
     uom: "Piece",
+    itemType: "Spare" as const,
+    shelfLifeMonths: 60,
     batchRequired: false,
     expiryRequired: false,
     serialRequired: true,
@@ -193,6 +215,8 @@ const biomedItemLookup = [
     name: "ECG Electrode Pads",
     partNumber: "3M-2560-ECG",
     uom: "Box (50)",
+    itemType: "Consumable" as const,
+    shelfLifeMonths: 36,
     batchRequired: true,
     expiryRequired: true,
     serialRequired: false,
@@ -202,6 +226,8 @@ const biomedItemLookup = [
     name: "Ventilator Flow Sensor",
     partNumber: "DRG-FS-8412960",
     uom: "Piece",
+    itemType: "Spare" as const,
+    shelfLifeMonths: 60,
     batchRequired: false,
     expiryRequired: false,
     serialRequired: true,
@@ -211,6 +237,8 @@ const biomedItemLookup = [
     name: "NIBP Cuff (Adult)",
     partNumber: "PHI-NIBP-M1574A",
     uom: "Piece",
+    itemType: "Accessory" as const,
+    shelfLifeMonths: 48,
     batchRequired: false,
     expiryRequired: false,
     serialRequired: false,
@@ -220,6 +248,8 @@ const biomedItemLookup = [
     name: "Defibrillator Pads (Adult)",
     partNumber: "PHI-DEF-M3713A",
     uom: "Pair",
+    itemType: "Consumable" as const,
+    shelfLifeMonths: 24,
     batchRequired: true,
     expiryRequired: true,
     serialRequired: false,
@@ -229,6 +259,8 @@ const biomedItemLookup = [
     name: "Infusion Pump Battery",
     partNumber: "BD-BAT-INF-320",
     uom: "Piece",
+    itemType: "Spare" as const,
+    shelfLifeMonths: 60,
     batchRequired: false,
     expiryRequired: false,
     serialRequired: true,
@@ -586,10 +618,11 @@ function GrnForm({
 
   // Lines
   const [lines, setLines] = useState<GrnLine[]>([]);
-  const [editingLineId, setEditingLineId] = useState<string | null>(null);
 
   // Upload state for ERP Transfer mode
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  // uploadFile is stored for future use (e.g., re-upload, filename display)
+  void uploadFile;
   const [uploadPreview, setUploadPreview] = useState<{
     rows: {
       item: string;
@@ -604,20 +637,46 @@ function GrnForm({
   const [qaItem, setQaItem] = useState("");
   const [qaQty, setQaQty] = useState("");
   const [qaBatch, setQaBatch] = useState("");
+  const [qaLotNumber, setQaLotNumber] = useState("");
+  const [qaMfgDate, setQaMfgDate] = useState("");
+  const [qaShelfLife, setQaShelfLife] = useState("");
   const [qaExpiry, setQaExpiry] = useState("");
   const [qaSerial, setQaSerial] = useState("");
+  const [qaWarranty, setQaWarranty] = useState("");
+  const [qaWarrantyExpiry, setQaWarrantyExpiry] = useState("");
   const [qaRate, setQaRate] = useState("");
   const [qaError, setQaError] = useState("");
   const [showQuickAdd, setShowQuickAdd] = useState(false);
 
   const qaSelectedItem = biomedItemLookup.find((i) => i.code === qaItem);
+  const isConsumable = qaSelectedItem?.itemType === "Consumable";
+  const isSpareOrAccessory = qaSelectedItem?.itemType === "Spare" || qaSelectedItem?.itemType === "Accessory";
+
+  // Auto-calculate expiry date when mfgDate or shelfLife changes
+  const qaComputedExpiry = qaMfgDate && qaShelfLife ? addMonths(qaMfgDate, parseInt(qaShelfLife) || 0) : qaExpiry;
+  const qaComputedWarrantyExpiry = qaMfgDate && qaWarranty ? addMonths(qaMfgDate, parseInt(qaWarranty) || 0) : qaWarrantyExpiry;
+
+  // Auto-populate shelf life from item master when item changes
+  const handleItemChange = (code: string) => {
+    setQaItem(code);
+    setQaError("");
+    const found = biomedItemLookup.find((i) => i.code === code);
+    if (found) {
+      setQaShelfLife(String(found.shelfLifeMonths || DEFAULT_SHELF_LIFE));
+    }
+  };
 
   const resetQuickAdd = () => {
     setQaItem("");
     setQaQty("");
     setQaBatch("");
+    setQaLotNumber("");
+    setQaMfgDate("");
+    setQaShelfLife("");
     setQaExpiry("");
     setQaSerial("");
+    setQaWarranty("");
+    setQaWarrantyExpiry("");
     setQaRate("");
     setQaError("");
   };
@@ -638,18 +697,22 @@ function GrnForm({
       setQaError("Quantity must be greater than 0.");
       return;
     }
-    if (found.batchRequired && !qaBatch.trim()) {
-      setQaError("Batch No is required for this item.");
+    const isCons = found.itemType === "Consumable";
+    const isSpAcc = found.itemType === "Spare" || found.itemType === "Accessory";
+
+    if (isCons && !qaBatch.trim()) {
+      setQaError("Batch Number is required for Consumables.");
       return;
     }
-    if (found.expiryRequired && !qaExpiry) {
-      setQaError("Expiry date is required for this item.");
+    if (isSpAcc && !qaSerial.trim()) {
+      setQaError("Serial Number is required for Spares/Accessories.");
       return;
     }
-    if (found.serialRequired && !qaSerial.trim()) {
-      setQaError("Serial number(s) required for this item.");
-      return;
-    }
+
+    const shelfLife = parseInt(qaShelfLife) || found.shelfLifeMonths || DEFAULT_SHELF_LIFE;
+    const computedExpiry = qaMfgDate ? addMonths(qaMfgDate, shelfLife) : qaExpiry;
+    const warrantyMo = parseInt(qaWarranty) || 0;
+    const computedWarrantyExp = isSpAcc && qaMfgDate && warrantyMo ? addMonths(qaMfgDate, warrantyMo) : "";
 
     const rate = parseFloat(qaRate) || 0;
     setLines((prev) => [
@@ -659,11 +722,17 @@ function GrnForm({
         itemCode: found.code,
         itemName: found.name,
         partNumber: found.partNumber,
+        itemType: found.itemType,
         qtyReceived: qty,
         uom: found.uom,
-        batchNo: qaBatch.trim(),
-        expiryDate: qaExpiry,
-        serialNumbers: qaSerial.trim(),
+        batchNo: isCons ? qaBatch.trim() : "",
+        lotNumber: isCons ? qaLotNumber.trim() : "",
+        serialNumbers: isSpAcc ? qaSerial.trim() : "",
+        mfgDate: qaMfgDate,
+        shelfLifeMonths: shelfLife,
+        expiryDate: computedExpiry,
+        warrantyMonths: isSpAcc ? warrantyMo : 0,
+        warrantyExpiry: computedWarrantyExp,
         unitRate: rate,
         lineAmount: rate * qty,
         batchRequired: found.batchRequired,
@@ -677,25 +746,6 @@ function GrnForm({
 
   const removeLine = (id: string) =>
     setLines((prev) => prev.filter((l) => l.id !== id));
-
-  // Inline edit support
-  const updateLine = (
-    id: string,
-    field: keyof GrnLine,
-    value: string | number,
-  ) => {
-    setLines((prev) =>
-      prev.map((l) => {
-        if (l.id !== id) return l;
-        const updated = { ...l, [field]: value };
-        if (field === "qtyReceived" || field === "unitRate") {
-          updated.lineAmount =
-            (updated.unitRate || 0) * (updated.qtyReceived || 0);
-        }
-        return updated;
-      }),
-    );
-  };
 
   const totalAmount = lines.reduce((s, l) => s + l.lineAmount, 0);
 
@@ -742,11 +792,17 @@ function GrnForm({
         itemCode: r.item,
         itemName: found?.name || r.item,
         partNumber: found?.partNumber || "",
+        itemType: (found?.itemType || "Spare") as GrnLine["itemType"],
         qtyReceived: r.qty,
         uom: found?.uom || "Piece",
         batchNo: r.batch,
-        expiryDate: r.expiry,
+        lotNumber: "",
         serialNumbers: "",
+        mfgDate: "",
+        shelfLifeMonths: found?.shelfLifeMonths || DEFAULT_SHELF_LIFE,
+        expiryDate: r.expiry,
+        warrantyMonths: 0,
+        warrantyExpiry: "",
         unitRate: 0,
         lineAmount: 0,
         batchRequired: found?.batchRequired || false,
@@ -1020,13 +1076,14 @@ function GrnForm({
           <div className="flex items-center justify-between mb-3 pb-2 border-b border-border">
             <div>
               <h3 className="text-sm font-extrabold text-foreground">
-                Line Items (Biomedical Spares / Consumables)
+                GRN Line Items
               </h3>
               <p className="text-[11px] text-muted-foreground">
                 {lines.length} item(s)
                 {totalAmount > 0
                   ? ` | Total: $${totalAmount.toLocaleString()}`
                   : ""}
+                {" "}<span className="text-[#8B5CF6]">Fields adapt based on item type (Consumable vs Spare/Accessory)</span>
               </p>
             </div>
             {inwardSource === "ERP Transfer" && (
@@ -1160,35 +1217,23 @@ function GrnForm({
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/30 [&>th]:h-7 [&>th]:py-0 [&>th]:text-[11px]">
-                    <TableHead className="font-bold text-foreground w-8">
-                      #
-                    </TableHead>
-                    <TableHead className="font-bold text-foreground min-w-[160px]">
-                      Item
-                    </TableHead>
-                    <TableHead className="font-bold text-foreground text-right w-14">
-                      Qty
-                    </TableHead>
-                    <TableHead className="font-bold text-foreground w-14">
-                      UOM
-                    </TableHead>
-                    <TableHead className="font-bold text-foreground w-24">
-                      Batch
-                    </TableHead>
-                    <TableHead className="font-bold text-foreground w-24">
-                      Expiry
-                    </TableHead>
-                    <TableHead className="font-bold text-foreground w-24">
-                      Serial
-                    </TableHead>
+                    <TableHead className="font-bold text-foreground w-8">#</TableHead>
+                    <TableHead className="font-bold text-foreground min-w-[140px]">Item</TableHead>
+                    <TableHead className="font-bold text-foreground w-14">Type</TableHead>
+                    <TableHead className="font-bold text-foreground text-right w-12">Qty</TableHead>
+                    <TableHead className="font-bold text-foreground w-12">UOM</TableHead>
+                    <TableHead className="font-bold text-foreground w-20">Batch</TableHead>
+                    <TableHead className="font-bold text-foreground w-20">Lot No</TableHead>
+                    <TableHead className="font-bold text-foreground w-20">Serial</TableHead>
+                    <TableHead className="font-bold text-foreground w-22">Mfg Date</TableHead>
+                    <TableHead className="font-bold text-foreground w-16">Shelf Life</TableHead>
+                    <TableHead className="font-bold text-foreground w-22">Exp. Date</TableHead>
+                    <TableHead className="font-bold text-foreground w-16">Warranty</TableHead>
+                    <TableHead className="font-bold text-foreground w-22">Warr. Expiry</TableHead>
                     {inwardSource === "Direct Purchase" && (
                       <>
-                        <TableHead className="font-bold text-foreground text-right w-20">
-                          Rate
-                        </TableHead>
-                        <TableHead className="font-bold text-foreground text-right w-20">
-                          Amount
-                        </TableHead>
+                        <TableHead className="font-bold text-foreground text-right w-16">Rate</TableHead>
+                        <TableHead className="font-bold text-foreground text-right w-16">Amount</TableHead>
                       </>
                     )}
                     <TableHead className="font-bold text-foreground text-center w-14" />
@@ -1196,156 +1241,37 @@ function GrnForm({
                 </TableHeader>
                 <TableBody>
                   {lines.map((ln, idx) => {
-                    const isEditing = editingLineId === ln.id;
+                    const lnCons = ln.itemType === "Consumable";
+                    const lnSpAcc = ln.itemType === "Spare" || ln.itemType === "Accessory";
                     return (
-                      <TableRow
-                        key={ln.id}
-                        className={cn(
-                          "h-8",
-                          isEditing && "bg-[#00BCD4]/[0.03]",
-                        )}
-                      >
-                        <TableCell className="text-[11px] text-muted-foreground py-0.5 px-2">
-                          {idx + 1}
+                      <TableRow key={ln.id} className="h-8">
+                        <TableCell className="text-[11px] text-muted-foreground py-0.5 px-2">{idx + 1}</TableCell>
+                        <TableCell className="py-0.5 px-2">
+                          <span className="text-xs font-semibold text-foreground">{ln.itemName}</span>
+                          <span className="text-[10px] font-mono text-[#00BCD4] ml-1">{ln.itemCode}</span>
                         </TableCell>
                         <TableCell className="py-0.5 px-2">
-                          <span className="text-xs font-semibold text-foreground">
-                            {ln.itemName}
-                          </span>
-                          <span className="text-[10px] font-mono text-[#00BCD4] ml-1.5">
-                            {ln.itemCode}
-                          </span>
+                          <Badge className={cn("text-[9px] font-bold border-0 px-1.5 py-0", lnCons ? "bg-[#F59E0B]/10 text-[#F59E0B]" : "bg-[#8B5CF6]/10 text-[#8B5CF6]")}>{ln.itemType}</Badge>
                         </TableCell>
-                        <TableCell className="text-right py-0.5 px-2">
-                          {isEditing ? (
-                            <Input
-                              type="number"
-                              className="h-6 text-[11px] w-14 text-right px-1"
-                              min="1"
-                              value={ln.qtyReceived}
-                              onChange={(e) =>
-                                updateLine(
-                                  ln.id,
-                                  "qtyReceived",
-                                  parseInt(e.target.value) || 0,
-                                )
-                              }
-                            />
-                          ) : (
-                            <span className="text-xs font-bold text-foreground">
-                              {ln.qtyReceived}
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-[11px] text-muted-foreground py-0.5 px-2">
-                          {ln.uom}
-                        </TableCell>
-                        <TableCell className="py-0.5 px-2">
-                          {isEditing ? (
-                            <Input
-                              className="h-6 text-[11px] w-20 px-1"
-                              value={ln.batchNo}
-                              onChange={(e) =>
-                                updateLine(ln.id, "batchNo", e.target.value)
-                              }
-                              placeholder="-"
-                            />
-                          ) : (
-                            <span className="text-[11px] text-muted-foreground">
-                              {ln.batchNo || "-"}
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className="py-0.5 px-2">
-                          {isEditing ? (
-                            <Input
-                              type="date"
-                              className="h-6 text-[11px] w-24 px-1"
-                              value={ln.expiryDate}
-                              onChange={(e) =>
-                                updateLine(ln.id, "expiryDate", e.target.value)
-                              }
-                            />
-                          ) : (
-                            <span className="text-[11px] text-muted-foreground">
-                              {ln.expiryDate || "-"}
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className="py-0.5 px-2">
-                          {isEditing ? (
-                            <Input
-                              className="h-6 text-[11px] w-20 px-1"
-                              value={ln.serialNumbers}
-                              onChange={(e) =>
-                                updateLine(
-                                  ln.id,
-                                  "serialNumbers",
-                                  e.target.value,
-                                )
-                              }
-                              placeholder="-"
-                            />
-                          ) : (
-                            <span className="text-[11px] text-muted-foreground">
-                              {ln.serialNumbers || "-"}
-                            </span>
-                          )}
-                        </TableCell>
+                        <TableCell className="text-right py-0.5 px-2 text-xs font-bold text-foreground">{ln.qtyReceived}</TableCell>
+                        <TableCell className="text-[11px] text-muted-foreground py-0.5 px-2">{ln.uom}</TableCell>
+                        <TableCell className="text-[11px] text-muted-foreground py-0.5 px-2">{lnCons ? (ln.batchNo || "-") : <span className="text-muted-foreground/40">N/A</span>}</TableCell>
+                        <TableCell className="text-[11px] text-muted-foreground py-0.5 px-2">{lnCons ? (ln.lotNumber || "-") : <span className="text-muted-foreground/40">N/A</span>}</TableCell>
+                        <TableCell className="text-[11px] text-muted-foreground py-0.5 px-2">{lnSpAcc ? (ln.serialNumbers || "-") : <span className="text-muted-foreground/40">N/A</span>}</TableCell>
+                        <TableCell className="text-[11px] text-muted-foreground py-0.5 px-2">{ln.mfgDate || "-"}</TableCell>
+                        <TableCell className="text-[11px] text-muted-foreground py-0.5 px-2">{ln.shelfLifeMonths ? `${ln.shelfLifeMonths}M` : "-"}</TableCell>
+                        <TableCell className="text-[11px] text-muted-foreground py-0.5 px-2">{ln.expiryDate || <span className="text-[#F59E0B] font-semibold">Auto</span>}</TableCell>
+                        <TableCell className="text-[11px] text-muted-foreground py-0.5 px-2">{lnSpAcc ? (ln.warrantyMonths ? `${ln.warrantyMonths}M` : "-") : <span className="text-muted-foreground/40">N/A</span>}</TableCell>
+                        <TableCell className="text-[11px] text-muted-foreground py-0.5 px-2">{lnSpAcc ? (ln.warrantyExpiry || <span className="text-[#F59E0B] font-semibold">Auto</span>) : <span className="text-muted-foreground/40">N/A</span>}</TableCell>
                         {inwardSource === "Direct Purchase" && (
                           <>
-                            <TableCell className="text-right py-0.5 px-2">
-                              {isEditing ? (
-                                <Input
-                                  type="number"
-                                  className="h-6 text-[11px] w-16 text-right px-1"
-                                  step="0.01"
-                                  value={ln.unitRate}
-                                  onChange={(e) =>
-                                    updateLine(
-                                      ln.id,
-                                      "unitRate",
-                                      parseFloat(e.target.value) || 0,
-                                    )
-                                  }
-                                />
-                              ) : (
-                                <span className="text-[11px] text-muted-foreground">
-                                  {ln.unitRate > 0 ? `$${ln.unitRate}` : "-"}
-                                </span>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-[11px] font-semibold text-foreground text-right py-0.5 px-2">
-                              {ln.lineAmount > 0
-                                ? `$${ln.lineAmount.toLocaleString()}`
-                                : "-"}
-                            </TableCell>
+                            <TableCell className="text-[11px] text-muted-foreground text-right py-0.5 px-2">{ln.unitRate > 0 ? `$${ln.unitRate}` : "-"}</TableCell>
+                            <TableCell className="text-[11px] font-semibold text-foreground text-right py-0.5 px-2">{ln.lineAmount > 0 ? `$${ln.lineAmount.toLocaleString()}` : "-"}</TableCell>
                           </>
                         )}
                         <TableCell className="text-center py-0.5 px-1">
                           <div className="flex items-center justify-center gap-0">
-                            {isEditing ? (
-                              <button
-                                onClick={() => setEditingLineId(null)}
-                                title="Done"
-                                className="h-5 w-5 inline-flex items-center justify-center rounded text-[#10B981] hover:bg-[#10B981]/10 transition-colors"
-                              >
-                                <CheckCircle2 className="w-3 h-3" />
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => setEditingLineId(ln.id)}
-                                title="Edit"
-                                className="h-5 w-5 inline-flex items-center justify-center rounded text-muted-foreground hover:text-[#00BCD4] hover:bg-[#00BCD4]/10 transition-colors"
-                              >
-                                <Pencil className="w-2.5 h-2.5" />
-                              </button>
-                            )}
-                            <button
-                              onClick={() => removeLine(ln.id)}
-                              title="Remove"
-                              className="h-5 w-5 inline-flex items-center justify-center rounded text-muted-foreground hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors"
-                            >
+                            <button onClick={() => removeLine(ln.id)} title="Remove" className="h-5 w-5 inline-flex items-center justify-center rounded text-muted-foreground hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors">
                               <Trash2 className="w-2.5 h-2.5" />
                             </button>
                           </div>
@@ -1357,95 +1283,83 @@ function GrnForm({
                   {/* Inline add row */}
                   {showQuickAdd && (
                     <TableRow className="h-8 bg-[#00BCD4]/[0.03] border-t border-dashed border-[#00BCD4]/30">
-                      <TableCell className="py-0.5 px-2 text-[11px] text-[#00BCD4]">
-                        +
-                      </TableCell>
+                      <TableCell className="py-0.5 px-2 text-[11px] text-[#00BCD4]">+</TableCell>
                       <TableCell className="py-0.5 px-2">
-                        <Select
-                          value={qaItem}
-                          onValueChange={(v) => {
-                            setQaItem(v);
-                            setQaError("");
-                          }}
-                        >
+                        <Select value={qaItem} onValueChange={handleItemChange}>
                           <SelectTrigger className="h-6 text-[11px] px-2">
                             <SelectValue placeholder="Select item" />
                           </SelectTrigger>
                           <SelectContent>
                             {biomedItemLookup.map((i) => (
                               <SelectItem key={i.code} value={i.code}>
-                                {i.name} ({i.code})
+                                <span className="font-semibold">{i.name}</span>
+                                <span className="text-muted-foreground ml-1">({i.itemType})</span>
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </TableCell>
-                      <TableCell className="py-0.5 px-2">
-                        <Input
-                          type="number"
-                          className="h-6 text-[11px] w-14 text-right px-1"
-                          placeholder="Qty"
-                          min="1"
-                          value={qaQty}
-                          onChange={(e) => setQaQty(e.target.value)}
-                        />
-                      </TableCell>
                       <TableCell className="py-0.5 px-2 text-[11px] text-muted-foreground">
-                        {qaSelectedItem?.uom || "-"}
+                        {qaSelectedItem ? (
+                          <Badge className={cn("text-[9px] font-bold border-0 px-1.5 py-0", isConsumable ? "bg-[#F59E0B]/10 text-[#F59E0B]" : "bg-[#8B5CF6]/10 text-[#8B5CF6]")}>{qaSelectedItem.itemType}</Badge>
+                        ) : "-"}
                       </TableCell>
                       <TableCell className="py-0.5 px-2">
-                        <Input
-                          className="h-6 text-[11px] w-20 px-1"
-                          placeholder={
-                            qaSelectedItem?.batchRequired ? "Required" : "-"
-                          }
-                          value={qaBatch}
-                          onChange={(e) => setQaBatch(e.target.value)}
-                        />
+                        <Input type="number" className="h-6 text-[11px] w-12 text-right px-1" placeholder="Qty" min="1" value={qaQty} onChange={(e) => setQaQty(e.target.value)} />
                       </TableCell>
+                      <TableCell className="py-0.5 px-2 text-[11px] text-muted-foreground">{qaSelectedItem?.uom || "-"}</TableCell>
+                      {/* Batch - Consumable only */}
                       <TableCell className="py-0.5 px-2">
-                        <Input
-                          type="date"
-                          className="h-6 text-[11px] w-24 px-1"
-                          value={qaExpiry}
-                          onChange={(e) => setQaExpiry(e.target.value)}
-                        />
+                        {isConsumable ? (
+                          <Input className="h-6 text-[11px] w-20 px-1" placeholder="Batch *" value={qaBatch} onChange={(e) => setQaBatch(e.target.value)} />
+                        ) : <span className="text-[11px] text-muted-foreground/40">N/A</span>}
                       </TableCell>
+                      {/* Lot Number - Consumable only */}
                       <TableCell className="py-0.5 px-2">
-                        <Input
-                          className="h-6 text-[11px] w-20 px-1"
-                          placeholder={
-                            qaSelectedItem?.serialRequired ? "Required" : "-"
-                          }
-                          value={qaSerial}
-                          onChange={(e) => setQaSerial(e.target.value)}
-                        />
+                        {isConsumable ? (
+                          <Input className="h-6 text-[11px] w-20 px-1" placeholder="Lot No" value={qaLotNumber} onChange={(e) => setQaLotNumber(e.target.value)} />
+                        ) : <span className="text-[11px] text-muted-foreground/40">N/A</span>}
+                      </TableCell>
+                      {/* Serial - Spare/Accessory only */}
+                      <TableCell className="py-0.5 px-2">
+                        {isSpareOrAccessory ? (
+                          <Input className="h-6 text-[11px] w-20 px-1" placeholder="Serial *" value={qaSerial} onChange={(e) => setQaSerial(e.target.value)} />
+                        ) : <span className="text-[11px] text-muted-foreground/40">N/A</span>}
+                      </TableCell>
+                      {/* Mfg Date - Common */}
+                      <TableCell className="py-0.5 px-2">
+                        <Input type="date" className="h-6 text-[11px] w-24 px-1" value={qaMfgDate} onChange={(e) => setQaMfgDate(e.target.value)} />
+                      </TableCell>
+                      {/* Shelf Life - auto from Store Master */}
+                      <TableCell className="py-0.5 px-2">
+                        <Input type="number" className="h-6 text-[11px] w-14 px-1" placeholder="60" value={qaShelfLife} onChange={(e) => setQaShelfLife(e.target.value)} />
+                      </TableCell>
+                      {/* Exp Date - auto-calculated */}
+                      <TableCell className="py-0.5 px-2 text-[11px]">
+                        {qaComputedExpiry ? <span className="text-[#10B981] font-semibold">{qaComputedExpiry}</span> : <span className="text-muted-foreground">Auto</span>}
+                      </TableCell>
+                      {/* Warranty - Spare/Accessory only */}
+                      <TableCell className="py-0.5 px-2">
+                        {isSpareOrAccessory ? (
+                          <Input type="number" className="h-6 text-[11px] w-14 px-1" placeholder="Months" value={qaWarranty} onChange={(e) => setQaWarranty(e.target.value)} />
+                        ) : <span className="text-[11px] text-muted-foreground/40">N/A</span>}
+                      </TableCell>
+                      {/* Warranty Expiry - auto-calculated */}
+                      <TableCell className="py-0.5 px-2 text-[11px]">
+                        {isSpareOrAccessory ? (qaComputedWarrantyExpiry ? <span className="text-[#10B981] font-semibold">{qaComputedWarrantyExpiry}</span> : <span className="text-muted-foreground">Auto</span>) : <span className="text-muted-foreground/40">N/A</span>}
                       </TableCell>
                       {inwardSource === "Direct Purchase" && (
                         <>
                           <TableCell className="py-0.5 px-2">
-                            <Input
-                              type="number"
-                              className="h-6 text-[11px] w-16 text-right px-1"
-                              placeholder="0.00"
-                              step="0.01"
-                              value={qaRate}
-                              onChange={(e) => setQaRate(e.target.value)}
-                            />
+                            <Input type="number" className="h-6 text-[11px] w-14 text-right px-1" placeholder="0.00" step="0.01" value={qaRate} onChange={(e) => setQaRate(e.target.value)} />
                           </TableCell>
                           <TableCell className="py-0.5 px-2 text-[11px] text-muted-foreground text-right">
-                            {qaRate && qaQty
-                              ? `$${(parseFloat(qaRate) * parseInt(qaQty)).toLocaleString()}`
-                              : "-"}
+                            {qaRate && qaQty ? `$${(parseFloat(qaRate) * parseInt(qaQty)).toLocaleString()}` : "-"}
                           </TableCell>
                         </>
                       )}
                       <TableCell className="py-0.5 px-1 text-center">
-                        <button
-                          onClick={handleQuickAdd}
-                          title="Add item"
-                          className="h-5 w-5 inline-flex items-center justify-center rounded-full bg-[#00BCD4] text-white hover:bg-[#00838F] transition-colors"
-                        >
+                        <button onClick={handleQuickAdd} title="Add item" className="h-5 w-5 inline-flex items-center justify-center rounded-full bg-[#00BCD4] text-white hover:bg-[#00838F] transition-colors">
                           <Plus className="w-2.5 h-2.5" />
                         </button>
                       </TableCell>
@@ -1455,16 +1369,10 @@ function GrnForm({
                   {/* Summary Row */}
                   {inwardSource === "Direct Purchase" && lines.length > 0 && (
                     <TableRow className="bg-muted/20 h-7">
-                      <TableCell
-                        colSpan={7}
-                        className="text-right text-[11px] font-extrabold text-foreground py-0.5 px-2"
-                      >
+                      <TableCell colSpan={13} className="text-right text-[11px] font-extrabold text-foreground py-0.5 px-2">
                         Total
                       </TableCell>
-                      <TableCell
-                        className="text-right text-[11px] font-extrabold text-foreground py-0.5 px-2"
-                        colSpan={2}
-                      >
+                      <TableCell className="text-right text-[11px] font-extrabold text-foreground py-0.5 px-2" colSpan={2}>
                         ${totalAmount.toLocaleString()}
                       </TableCell>
                       <TableCell className="py-0.5" />
@@ -1489,6 +1397,34 @@ function GrnForm({
                 </button>
               </div>
             )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* GRN Documents */}
+      <Card className="border border-border shadow-sm">
+        <CardContent className="p-4">
+          <h3 className="text-sm font-extrabold text-foreground mb-3 pb-2 border-b border-border">
+            Documents for GRN
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            {[
+              { key: "po", label: "Purchase Order (PO)" },
+              { key: "invoice", label: "Invoice" },
+              { key: "dc", label: "Delivery Challan (DC)" },
+              { key: "warranty", label: "Warranty Certificate" },
+              { key: "msds", label: "MSDS" },
+              { key: "additional", label: "Additional Docs, If Any" },
+            ].map((doc) => (
+              <div key={doc.key} className="flex flex-col gap-1">
+                <Label className="text-[11px] font-bold text-foreground">{doc.label}</Label>
+                <label className="h-16 border border-dashed border-border rounded-lg flex flex-col items-center justify-center gap-1 text-muted-foreground cursor-pointer hover:border-[#00BCD4] hover:bg-[#00BCD4]/[0.02] transition-colors">
+                  <Upload className="w-3.5 h-3.5" />
+                  <span className="text-[10px] font-medium">Upload file</span>
+                  <input type="file" className="hidden" />
+                </label>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
