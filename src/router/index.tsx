@@ -30,6 +30,9 @@ function RoleAwareRedirect() {
   if (userRole === "cmms-enduser") {
     return <Navigate to={ROUTES.TICKET_REGISTRATION} replace />;
   }
+  if (userRole === "org-admin") {
+    return <Navigate to={ROUTES.LOCATIONS} replace />;
+  }
   return <Navigate to={ROUTES.DASHBOARD} replace />;
 }
 

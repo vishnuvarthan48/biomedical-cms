@@ -15,7 +15,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 
-export type LoginRole = "platform-admin" | "tenant-admin" | "user" | "cmms-enduser";
+export type LoginRole = "platform-admin" | "tenant-admin" | "org-admin" | "user" | "cmms-enduser";
 
 interface LoginResult {
   role: LoginRole;
@@ -58,6 +58,12 @@ export function LoginScreen({
         emailLower.includes("cmmsenduser")
       ) {
         onLogin({ role: "cmms-enduser", mustChangePassword: false });
+      } else if (
+        emailLower.includes("orgadmin") ||
+        emailLower.includes("org-admin") ||
+        emailLower.includes("org.admin")
+      ) {
+        onLogin({ role: "org-admin", mustChangePassword: false });
       } else if (
         emailLower.includes("tenant") ||
         emailLower.includes("admin")
@@ -429,6 +435,11 @@ export function LoginScreen({
                       label: "Tenant Admin",
                       email: "tenant.admin@hospital.com",
                       hint: "Tenant-level admin",
+                    },
+                    {
+                      label: "Org Admin",
+                      email: "orgadmin@hospital.com",
+                      hint: "Location, Department & Notifications",
                     },
                     {
                       label: "CMMS User",

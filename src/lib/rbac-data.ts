@@ -138,6 +138,8 @@ export const seededResources: ResourceDef[] = [
   { id: "RES-09", resourceKey: "ASSET_CATEGORY", resourceName: "Asset Category", parentId: "RES-07", description: "Equipment classification categories", isActive: true },
   { id: "RES-10", resourceKey: "LOCATION", resourceName: "Location", parentId: "RES-07", description: "Physical locations and zones", isActive: true },
   { id: "RES-11", resourceKey: "DEVICE_MASTER", resourceName: "Device Master", parentId: "RES-07", description: "Device catalog and master data", isActive: true },
+  { id: "RES-32", resourceKey: "DEPARTMENT", resourceName: "Department", parentId: "RES-07", description: "Department and location mapping", isActive: true },
+  { id: "RES-33", resourceKey: "NOTIFICATION_SETTINGS", resourceName: "Notification Settings", parentId: "RES-01", description: "Email, SMS and push notification configuration", isActive: true },
 
   // Maintenance Group
   { id: "RES-12", resourceKey: "MAINTENANCE", resourceName: "Maintenance", parentId: null, description: "Top-level maintenance group", isActive: true },
@@ -244,15 +246,25 @@ export const mockRolePermissions: RolePermission[] = [
   { roleId: "R1", resourceId: "RES-29", actionId: "A-10", isAllowed: true }, // Reports > Export
 
   // R2: Organization Admin
-  { roleId: "R2", resourceId: "RES-03", actionId: "A-01", isAllowed: true },
-  { roleId: "R2", resourceId: "RES-03", actionId: "A-03", isAllowed: true },
-  { roleId: "R2", resourceId: "RES-04", actionId: "A-01", isAllowed: true },
-  { roleId: "R2", resourceId: "RES-04", actionId: "A-02", isAllowed: true },
-  { roleId: "R2", resourceId: "RES-04", actionId: "A-03", isAllowed: true },
-  { roleId: "R2", resourceId: "RES-05", actionId: "A-01", isAllowed: true },
-  { roleId: "R2", resourceId: "RES-06", actionId: "A-01", isAllowed: true },
-  { roleId: "R2", resourceId: "RES-29", actionId: "A-01", isAllowed: true },
-  { roleId: "R2", resourceId: "RES-29", actionId: "A-10", isAllowed: true },
+  { roleId: "R2", resourceId: "RES-03", actionId: "A-01", isAllowed: true },  // Org Settings > View
+  { roleId: "R2", resourceId: "RES-03", actionId: "A-03", isAllowed: true },  // Org Settings > Update
+  { roleId: "R2", resourceId: "RES-04", actionId: "A-01", isAllowed: true },  // User > View
+  { roleId: "R2", resourceId: "RES-04", actionId: "A-02", isAllowed: true },  // User > Create
+  { roleId: "R2", resourceId: "RES-04", actionId: "A-03", isAllowed: true },  // User > Update
+  { roleId: "R2", resourceId: "RES-05", actionId: "A-01", isAllowed: true },  // Role > View
+  { roleId: "R2", resourceId: "RES-06", actionId: "A-01", isAllowed: true },  // Audit Log > View
+  { roleId: "R2", resourceId: "RES-10", actionId: "A-01", isAllowed: true },  // Location > View
+  { roleId: "R2", resourceId: "RES-10", actionId: "A-02", isAllowed: true },  // Location > Create
+  { roleId: "R2", resourceId: "RES-10", actionId: "A-03", isAllowed: true },  // Location > Update
+  { roleId: "R2", resourceId: "RES-10", actionId: "A-04", isAllowed: true },  // Location > Delete
+  { roleId: "R2", resourceId: "RES-32", actionId: "A-01", isAllowed: true },  // Department > View
+  { roleId: "R2", resourceId: "RES-32", actionId: "A-02", isAllowed: true },  // Department > Create
+  { roleId: "R2", resourceId: "RES-32", actionId: "A-03", isAllowed: true },  // Department > Update
+  { roleId: "R2", resourceId: "RES-32", actionId: "A-04", isAllowed: true },  // Department > Delete
+  { roleId: "R2", resourceId: "RES-33", actionId: "A-01", isAllowed: true },  // Notification Settings > View
+  { roleId: "R2", resourceId: "RES-33", actionId: "A-14", isAllowed: true },  // Notification Settings > Configure
+  { roleId: "R2", resourceId: "RES-29", actionId: "A-01", isAllowed: true },  // Reports > View
+  { roleId: "R2", resourceId: "RES-29", actionId: "A-10", isAllowed: true },  // Reports > Export
 
   // R3: Maintenance Manager
   { roleId: "R3", resourceId: "RES-14", actionId: "A-01", isAllowed: true }, // Work Order > View

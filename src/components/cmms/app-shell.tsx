@@ -47,7 +47,7 @@ type NavItem = {
   roles?: LoginRole[];
 };
 
-const allRolesExceptEndUser: LoginRole[] = ["platform-admin", "tenant-admin", "user"];
+const allRolesExceptEndUser: LoginRole[] = ["platform-admin", "tenant-admin", "org-admin", "user"];
 
 const navItems: NavItem[] = [
   {
@@ -174,7 +174,7 @@ const navItems: NavItem[] = [
     icon: Shield,
     section: "Administration",
     path: ROUTES.TENANT_ADMIN,
-    roles: ["tenant-admin", "platform-admin"],
+    roles: ["tenant-admin", "org-admin", "platform-admin"],
   },
   {
     id: MODULES.LOCATIONS,
@@ -182,7 +182,7 @@ const navItems: NavItem[] = [
     icon: MapPin,
     section: "Administration",
     path: ROUTES.LOCATIONS,
-    roles: ["tenant-admin", "platform-admin"],
+    roles: ["tenant-admin", "org-admin", "platform-admin"],
   },
   {
     id: MODULES.NOTIFICATION_SETTINGS,
@@ -190,7 +190,7 @@ const navItems: NavItem[] = [
     icon: Bell,
     section: "Administration",
     path: ROUTES.NOTIFICATION_SETTINGS,
-    roles: ["tenant-admin", "platform-admin"],
+    roles: ["tenant-admin", "org-admin", "platform-admin"],
   },
   {
     id: MODULES.VOUCHER_SERIES,
@@ -246,26 +246,32 @@ export function AppShell() {
       ? "Platform Admin"
       : userRole === "tenant-admin"
         ? "Tenant Admin"
-        : userRole === "cmms-enduser"
-          ? "CMMS End User"
-          : "BME Manager";
+        : userRole === "org-admin"
+          ? "Organization Admin"
+          : userRole === "cmms-enduser"
+            ? "CMMS End User"
+            : "BME Manager";
 
   const roleInitials =
     userRole === "platform-admin"
       ? "PA"
       : userRole === "tenant-admin"
         ? "TA"
-        : userRole === "cmms-enduser"
-          ? "EU"
-          : "AK";
+        : userRole === "org-admin"
+          ? "OA"
+          : userRole === "cmms-enduser"
+            ? "EU"
+            : "AK";
   const userName =
     userRole === "platform-admin"
       ? "Platform Admin"
       : userRole === "tenant-admin"
         ? "Arjun Kumar"
-        : userRole === "cmms-enduser"
-          ? "End User"
-          : "Admin User";
+        : userRole === "org-admin"
+          ? "Ravi Anand"
+          : userRole === "cmms-enduser"
+            ? "End User"
+            : "Admin User";
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
@@ -523,7 +529,7 @@ export function AppShell() {
           </div>
 
           <div className="flex items-center gap-3">
-            {userRole !== "platform-admin" && (
+            {userRole !== "platform-admin" && userRole !== "cmms-enduser" && (
               <div className="hidden lg:block">
                 <OrgSwitcher />
               </div>
