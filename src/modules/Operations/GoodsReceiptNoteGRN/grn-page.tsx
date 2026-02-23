@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { cn } from "@/src/lib/utils";
+import { mockItems as itemMasterData } from "@/src/lib/item-master-data";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
@@ -198,74 +199,20 @@ function addMonths(dateStr: string, months: number): string {
 }
 
 // Biomedical items only
-const biomedItemLookup = [
-  {
-    code: "BIO-SPR-001",
-    name: "SpO2 Sensor Cable",
-    partNumber: "PHI-SPO2-M1191B",
-    uom: "Piece",
-    itemType: "Spare" as const,
-    shelfLifeMonths: 60,
-    batchRequired: false,
-    expiryRequired: false,
-    serialRequired: true,
-  },
-  {
-    code: "BIO-CON-001",
-    name: "ECG Electrode Pads",
-    partNumber: "3M-2560-ECG",
-    uom: "Box (50)",
-    itemType: "Consumable" as const,
-    shelfLifeMonths: 36,
-    batchRequired: true,
-    expiryRequired: true,
-    serialRequired: false,
-  },
-  {
-    code: "BIO-SPR-002",
-    name: "Ventilator Flow Sensor",
-    partNumber: "DRG-FS-8412960",
-    uom: "Piece",
-    itemType: "Spare" as const,
-    shelfLifeMonths: 60,
-    batchRequired: false,
-    expiryRequired: false,
-    serialRequired: true,
-  },
-  {
-    code: "BIO-ACC-001",
-    name: "NIBP Cuff (Adult)",
-    partNumber: "PHI-NIBP-M1574A",
-    uom: "Piece",
-    itemType: "Accessory" as const,
-    shelfLifeMonths: 48,
-    batchRequired: false,
-    expiryRequired: false,
-    serialRequired: false,
-  },
-  {
-    code: "BIO-CON-002",
-    name: "Defibrillator Pads (Adult)",
-    partNumber: "PHI-DEF-M3713A",
-    uom: "Pair",
-    itemType: "Consumable" as const,
-    shelfLifeMonths: 24,
-    batchRequired: true,
-    expiryRequired: true,
-    serialRequired: false,
-  },
-  {
-    code: "BIO-SPR-003",
-    name: "Infusion Pump Battery",
-    partNumber: "BD-BAT-INF-320",
-    uom: "Piece",
-    itemType: "Spare" as const,
-    shelfLifeMonths: 60,
-    batchRequired: false,
-    expiryRequired: false,
-    serialRequired: true,
-  },
-];
+// Derive item lookup from shared Item Master – single source of truth
+const biomedItemLookup = itemMasterData
+  .filter((i) => i.status === "Active")
+  .map((i) => ({
+    code: i.itemCode,
+    name: i.itemName,
+    partNumber: i.partNumber,
+    uom: i.stockUom,
+    itemType: i.itemType as "Spare" | "Consumable" | "Accessory",
+    shelfLifeMonths: i.itemType === "Consumable" ? 36 : 60,
+    batchRequired: i.batchRequired,
+    expiryRequired: i.expiryRequired,
+    serialRequired: i.serialTracking,
+  }));
 
 // ----- Helpers -----
 function FormField({
@@ -619,10 +566,8 @@ function GrnForm({
   // Lines
   const [lines, setLines] = useState<GrnLine[]>([]);
 
-  // Upload state for ERP Transfer mode
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-  // uploadFile is stored for future use (e.g., re-upload, filename display)
-  void uploadFile;
+  // Upload state for ERP Transfer mode – only setter used during file parse
+  const setUploadFile = useState<File | null>(null)[1];
   const [uploadPreview, setUploadPreview] = useState<{
     rows: {
       item: string;
@@ -1293,6 +1238,7 @@ function GrnForm({
                             {biomedItemLookup.map((i) => (
                               <SelectItem key={i.code} value={i.code}>
                                 <span className="font-semibold">{i.name}</span>
+                                <span className="text-muted-foreground ml-1 font-mono text-[10px]">{i.code}</span>
                                 <span className="text-muted-foreground ml-1">({i.itemType})</span>
                               </SelectItem>
                             ))}

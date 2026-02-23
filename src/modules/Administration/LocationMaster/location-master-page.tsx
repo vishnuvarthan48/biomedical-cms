@@ -68,6 +68,7 @@ interface LocationRow {
   orgId: string;
   orgName: string;
   building: string;
+  numberOfFloors: number;
   address: string;
   city: string;
   state: string;
@@ -100,6 +101,7 @@ const initialLocations: LocationRow[] = [
     orgId: "ORG-001",
     orgName: "Apollo Chennai - Main Campus",
     building: "Main Tower",
+    numberOfFloors: 8,
     address: "21, Greams Lane, Off Greams Road",
     city: "Chennai",
     state: "Tamil Nadu",
@@ -136,6 +138,7 @@ const initialLocations: LocationRow[] = [
     orgId: "ORG-001",
     orgName: "Apollo Chennai - Main Campus",
     building: "Diagnostic Block",
+    numberOfFloors: 4,
     address: "21, Greams Lane, Off Greams Road",
     city: "Chennai",
     state: "Tamil Nadu",
@@ -158,6 +161,7 @@ const initialLocations: LocationRow[] = [
     orgId: "ORG-002",
     orgName: "Apollo Chennai - OMR Branch",
     building: "Block A - Main Hospital",
+    numberOfFloors: 10,
     address: "Sarita Vihar, Delhi - Mathura Road",
     city: "New Delhi",
     state: "Delhi",
@@ -185,6 +189,7 @@ const initialLocations: LocationRow[] = [
     orgId: "ORG-001",
     orgName: "Apollo Chennai - Main Campus",
     building: "Tower A",
+    numberOfFloors: 5,
     address: "154/11, Bannerghatta Road",
     city: "Bangalore",
     state: "Karnataka",
@@ -207,6 +212,7 @@ const initialLocations: LocationRow[] = [
     orgId: "ORG-002",
     orgName: "Apollo Chennai - OMR Branch",
     building: "Single Building",
+    numberOfFloors: 2,
     address: "Road No. 36, Jubilee Hills",
     city: "Hyderabad",
     state: "Telangana",
@@ -264,6 +270,7 @@ export function LocationMasterPage() {
   const [editLocId, setEditLocId] = useState<string | null>(null);
   const [lOrgId, setLOrgId] = useState("");
   const [lBuilding, setLBuilding] = useState("");
+  const [lFloors, setLFloors] = useState("");
   const [lAddress, setLAddress] = useState("");
   const [lCity, setLCity] = useState("");
   const [lState, setLState] = useState("");
@@ -289,8 +296,40 @@ export function LocationMasterPage() {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set(["LOC-001"]));
 
   /* --- Location CRUD --- */
+  // --- Auto-populate address from organization ---
+  const orgCityStateMap: Record<string, { city: string; state: string }> = {
+    "ORG-001": { city: "Chennai", state: "Tamil Nadu" },
+    "ORG-002": { city: "Chennai", state: "Tamil Nadu" },
+    "ORG-003": { city: "Hyderabad", state: "Telangana" },
+    "ORG-004": { city: "Gurugram", state: "Haryana" },
+    "ORG-005": { city: "Noida", state: "Uttar Pradesh" },
+  };
+
+  const onOrgChange = (orgId: string) => {
+    setLOrgId(orgId);
+    // Only auto-populate when creating new (not editing)
+    if (editLocId) return;
+    const org = mockOrganizations.find((o) => o.id === orgId);
+    if (!org) return;
+
+    // Parse address: extract pin code (6-digit number at end), then street parts
+    const pinMatch = org.address.match(/(\d{6})\s*$/);
+    const pinCode = pinMatch ? pinMatch[1] : "";
+    const streetPart = org.address.replace(/\d{6}\s*$/, "").replace(/,\s*$/, "").trim();
+
+    // Use city/state from mapping, fall back to org name parsing
+    const cityState = orgCityStateMap[orgId];
+    const city = cityState?.city || "";
+    const state = cityState?.state || "";
+
+    setLAddress(streetPart);
+    setLCity(city);
+    setLState(state);
+    setLPinCode(pinCode);
+  };
+
   const resetLocModal = () => {
-    setLOrgId(""); setLBuilding(""); setLAddress(""); setLCity("");
+    setLOrgId(""); setLBuilding(""); setLFloors(""); setLAddress(""); setLCity("");
     setLState(""); setLPinCode(""); setLEmail(""); setLCostType("");
     setLNotes(""); setLActive(true); setLError(""); setEditLocId(null);
   };
@@ -299,7 +338,7 @@ export function LocationMasterPage() {
 
   const openEditLocation = (loc: LocationRow) => {
     setEditLocId(loc.id);
-    setLOrgId(loc.orgId); setLBuilding(loc.building); setLAddress(loc.address);
+    setLOrgId(loc.orgId); setLBuilding(loc.building); setLFloors(String(loc.numberOfFloors)); setLAddress(loc.address);
     setLCity(loc.city); setLState(loc.state); setLPinCode(loc.pinCode);
     setLEmail(loc.email); setLCostType(loc.costType); setLNotes(loc.endUserNotes);
     setLActive(loc.isActive); setLError("");
@@ -317,7 +356,7 @@ export function LocationMasterPage() {
       setLocations((prev) =>
         prev.map((l) =>
           l.id === editLocId
-            ? { ...l, orgId: lOrgId, orgName, building: lBuilding.trim(), address: lAddress.trim(), city: lCity.trim(), state: lState.trim(), pinCode: lPinCode.trim(), email: lEmail.trim(), costType: lCostType, endUserNotes: lNotes.trim(), isActive: lActive }
+            ? { ...l, orgId: lOrgId, orgName, building: lBuilding.trim(), numberOfFloors: parseInt(lFloors) || 1, address: lAddress.trim(), city: lCity.trim(), state: lState.trim(), pinCode: lPinCode.trim(), email: lEmail.trim(), costType: lCostType, endUserNotes: lNotes.trim(), isActive: lActive }
             : l,
         ),
       );
@@ -327,6 +366,7 @@ export function LocationMasterPage() {
         orgId: lOrgId,
         orgName,
         building: lBuilding.trim(),
+        numberOfFloors: parseInt(lFloors) || 1,
         address: lAddress.trim(),
         city: lCity.trim(),
         state: lState.trim(),
@@ -367,6 +407,7 @@ export function LocationMasterPage() {
 
   const saveDept = () => {
     if (!dName.trim()) { setDError("Department name is required."); return; }
+    if (!dFloor) { setDError("Floor is required. Please select a floor."); return; }
     if (!deptLocId) return;
 
     setLocations((prev) =>
@@ -512,6 +553,9 @@ export function LocationMasterPage() {
                             <Building2 className="w-3 h-3 text-[#00BCD4] shrink-0" />
                             <span className="text-xs text-foreground font-medium">{loc.building}</span>
                           </div>
+                          <span className="text-[10px] text-muted-foreground ml-4.5">
+                            <Layers className="w-2.5 h-2.5 inline mr-0.5 -mt-px" />{loc.numberOfFloors} floor{loc.numberOfFloors !== 1 ? "s" : ""}
+                          </span>
                         </TableCell>
 
                         {/* Address */}
@@ -660,7 +704,7 @@ export function LocationMasterPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <FormField label="Hospital / Clinic / Organization" required hint="Only your assigned organizations are shown">
-                  <Select value={lOrgId} onValueChange={setLOrgId}>
+                  <Select value={lOrgId} onValueChange={onOrgChange}>
                     <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select organization" /></SelectTrigger>
                     <SelectContent>
                       {organizationOptions.map((org) => (
@@ -676,6 +720,32 @@ export function LocationMasterPage() {
                   <Input className="h-9 text-xs" placeholder="e.g. Main Tower" value={lBuilding} onChange={(e) => setLBuilding(e.target.value)} />
                 </FormField>
               </div>
+
+              <FormField label="No. of Floors" required hint="Enter total number of floors (incl. Basement and Ground Floor). This will populate the floor dropdown while adding departments.">
+                <div className="flex items-center gap-3">
+                  <Input
+                    className="h-9 text-xs w-32 font-mono"
+                    type="number"
+                    min="1"
+                    max="99"
+                    placeholder="e.g. 8"
+                    value={lFloors}
+                    onChange={(e) => setLFloors(e.target.value)}
+                  />
+                  {lFloors && parseInt(lFloors) > 0 && (
+                    <span className="text-[10px] text-muted-foreground">
+                      Floors: Basement, Ground, {Array.from({ length: Math.min(parseInt(lFloors) - 2, 3) }, (_, i) => `${i + 1}${i === 0 ? "st" : i === 1 ? "nd" : "rd"}`).join(", ")}
+                      {parseInt(lFloors) > 5 ? `, ... ${parseInt(lFloors) - 2}th` : ""}
+                    </span>
+                  )}
+                </div>
+              </FormField>
+
+              {lOrgId && lAddress && !editLocId && (
+                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-[#00BCD4]/5 border border-[#00BCD4]/20">
+                  <span className="text-[10px] text-[#00BCD4] font-semibold">Address auto-populated from organization. You can modify if needed.</span>
+                </div>
+              )}
 
               <FormField label="Address">
                 <Textarea className="text-xs min-h-[60px]" placeholder="Street address" value={lAddress} onChange={(e) => setLAddress(e.target.value)} />
@@ -778,11 +848,29 @@ export function LocationMasterPage() {
               </FormField>
 
               <div className="grid grid-cols-3 gap-3">
-                <FormField label="Floor" hint="e.g. Ground, 1st, 2nd, Basement">
-                  <div className="relative">
-                    <Layers className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
-                    <Input className="h-9 text-xs pl-7" placeholder="Floor" value={dFloor} onChange={(e) => setDFloor(e.target.value)} />
-                  </div>
+                <FormField label="Floor" required hint="Select floor from location's configured floors">
+                  <Select value={dFloor} onValueChange={setDFloor}>
+                    <SelectTrigger className="h-9 text-xs">
+                      <Layers className="w-3 h-3 text-muted-foreground mr-1" />
+                      <SelectValue placeholder="Select floor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(() => {
+                        const parentLoc = locations.find((l) => l.id === deptLocId);
+                        const totalFloors = parentLoc?.numberOfFloors || 1;
+                        const floorOptions: string[] = [];
+                        if (totalFloors >= 1) floorOptions.push("Basement");
+                        floorOptions.push("Ground Floor");
+                        for (let i = 1; i <= Math.max(totalFloors - 2, 0); i++) {
+                          const suffix = i === 1 ? "st" : i === 2 ? "nd" : i === 3 ? "rd" : "th";
+                          floorOptions.push(`${i}${suffix} Floor`);
+                        }
+                        return floorOptions.map((f) => (
+                          <SelectItem key={f} value={f}>{f}</SelectItem>
+                        ));
+                      })()}
+                    </SelectContent>
+                  </Select>
                 </FormField>
                 <FormField label="Room No" hint="e.g. ICU-301, OT-501">
                   <div className="relative">

@@ -18,6 +18,7 @@ export const MODULES = {
   PLATFORM_ADMIN: "platform-admin",
   VOUCHER_SERIES: "voucher-series",
   LOCATIONS: "locations",
+  NOTIFICATION_SETTINGS: "notification-settings",
 } as const;
 
 export const ROUTES = {
@@ -43,4 +44,5 @@ export const ROUTES = {
   PLATFORM_ADMIN: `/${MODULES.PLATFORM_ADMIN}`,
   VOUCHER_SERIES: `/${MODULES.VOUCHER_SERIES}`,
   LOCATIONS: `/${MODULES.LOCATIONS}`,
+  NOTIFICATION_SETTINGS: `/${MODULES.NOTIFICATION_SETTINGS}`,
 } as const;

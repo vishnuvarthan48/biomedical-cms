@@ -82,7 +82,7 @@ const TABS = [
     id: "installation",
     label: "Inst. Records",
     icon: FileText,
-    mandatory: false,
+    mandatory: true,
   },
   {
     id: "maintenance",
@@ -558,83 +558,6 @@ function GenericTab() {
         </div>
       </div>
 
-      {/* Purchase Cost */}
-      <div>
-        <h3 className="text-base font-extrabold text-foreground mb-5 pb-3 border-b border-border">
-          Purchase Cost
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <FormField label="Purchase Price" required>
-            <Input
-              type="number"
-              className="h-10"
-              placeholder="0.00"
-              step="0.01"
-            />
-          </FormField>
-          <FormField label="Currency">
-            <Select>
-              <SelectTrigger className="h-10">
-                <SelectValue placeholder="Select currency" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="INR">INR - Indian Rupee</SelectItem>
-                <SelectItem value="USD">USD - US Dollar</SelectItem>
-                <SelectItem value="EUR">EUR - Euro</SelectItem>
-                <SelectItem value="GBP">GBP - British Pound</SelectItem>
-                <SelectItem value="AED">AED - UAE Dirham</SelectItem>
-                <SelectItem value="SAR">SAR - Saudi Riyal</SelectItem>
-              </SelectContent>
-            </Select>
-          </FormField>
-          <FormField label="Tax / GST (%)">
-            <Input
-              type="number"
-              className="h-10"
-              placeholder="e.g. 18"
-              step="0.01"
-            />
-          </FormField>
-          <FormField label="Tax Amount">
-            <Input
-              type="number"
-              className="h-10 bg-muted/30"
-              placeholder="Auto-calculated"
-              readOnly
-            />
-          </FormField>
-          <FormField label="Total Cost (Incl. Tax)">
-            <Input
-              type="number"
-              className="h-10 bg-muted/30 font-semibold"
-              placeholder="Auto-calculated"
-              readOnly
-            />
-          </FormField>
-          <FormField label="Funding Source">
-            <Select>
-              <SelectTrigger className="h-10">
-                <SelectValue placeholder="Select source" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="CAPEX">
-                  Capital Expenditure (CAPEX)
-                </SelectItem>
-                <SelectItem value="OPEX">
-                  Operating Expenditure (OPEX)
-                </SelectItem>
-                <SelectItem value="GRANT">Grant / Donation</SelectItem>
-                <SelectItem value="LEASE">Lease</SelectItem>
-                <SelectItem value="LOAN">Loan Funded</SelectItem>
-              </SelectContent>
-            </Select>
-          </FormField>
-          <FormField label="Budget Code">
-            <Input className="h-10" placeholder="e.g. CAPEX-BME-2026-001" />
-          </FormField>
-        </div>
-      </div>
-
       {/* Depreciation - Auto-populated from Device Registration */}
       <div>
         <h3 className="text-base font-extrabold text-foreground mb-5 pb-3 border-b border-border">
@@ -904,12 +827,6 @@ function AccessoriesTab() {
                   placeholder="1"
                   defaultValue="1"
                 />
-              </FormField>
-              <FormField label="Installation Date">
-                <Input type="date" className="h-10" />
-              </FormField>
-              <FormField label="Warranty Expiry">
-                <Input type="date" className="h-10" />
               </FormField>
               <FormField label="Condition">
                 <Select>
@@ -1753,10 +1670,60 @@ function VendorTab() {
   );
 }
 
-// Tab 7: Installation Records
+// Tab 7: Installation Records (Purchase Cost + Procurement + Delivery & Installation + Warranty)
 function InstallationTab() {
   return (
     <div className="flex flex-col gap-6">
+      {/* Purchase Cost */}
+      <div>
+        <h3 className="text-base font-extrabold text-foreground mb-5 pb-3 border-b border-border">
+          Purchase Cost
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <FormField label="Purchase Price" required>
+            <Input type="number" className="h-10" placeholder="0.00" step="0.01" />
+          </FormField>
+          <FormField label="Currency">
+            <Select>
+              <SelectTrigger className="h-10"><SelectValue placeholder="Select currency" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="INR">INR - Indian Rupee</SelectItem>
+                <SelectItem value="USD">USD - US Dollar</SelectItem>
+                <SelectItem value="EUR">EUR - Euro</SelectItem>
+                <SelectItem value="GBP">GBP - British Pound</SelectItem>
+                <SelectItem value="AED">AED - UAE Dirham</SelectItem>
+                <SelectItem value="SAR">SAR - Saudi Riyal</SelectItem>
+              </SelectContent>
+            </Select>
+          </FormField>
+          <FormField label="Tax / GST (%)">
+            <Input type="number" className="h-10" placeholder="e.g. 18" step="0.01" />
+          </FormField>
+          <FormField label="Tax Amount">
+            <Input type="number" className="h-10 bg-muted/30" placeholder="Auto-calculated" readOnly />
+          </FormField>
+          <FormField label="Total Cost (Incl. Tax)">
+            <Input type="number" className="h-10 bg-muted/30 font-semibold" placeholder="Auto-calculated" readOnly />
+          </FormField>
+          <FormField label="Funding Source">
+            <Select>
+              <SelectTrigger className="h-10"><SelectValue placeholder="Select source" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="CAPEX">Capital Expenditure (CAPEX)</SelectItem>
+                <SelectItem value="OPEX">Operating Expenditure (OPEX)</SelectItem>
+                <SelectItem value="GRANT">Grant / Donation</SelectItem>
+                <SelectItem value="LEASE">Lease</SelectItem>
+                <SelectItem value="LOAN">Loan Funded</SelectItem>
+              </SelectContent>
+            </Select>
+          </FormField>
+          <FormField label="Budget Code">
+            <Input className="h-10" placeholder="e.g. CAPEX-BME-2026-001" />
+          </FormField>
+        </div>
+      </div>
+
+      {/* Procurement Trail */}
       <div>
         <h3 className="text-base font-extrabold text-foreground mb-5 pb-3 border-b border-border">
           Procurement Trail
@@ -1788,6 +1755,8 @@ function InstallationTab() {
           </FormField>
         </div>
       </div>
+
+      {/* Delivery & Installation */}
       <div>
         <h3 className="text-base font-extrabold text-foreground mb-5 pb-3 border-b border-border">
           Delivery & Installation
@@ -1805,8 +1774,22 @@ function InstallationTab() {
           <FormField label="Installation Date">
             <Input type="date" className="h-10" />
           </FormField>
+          <FormField label="Installation Location">
+            <Input className="h-10" placeholder="Room / Floor / Building" />
+          </FormField>
+          <FormField label="Commissioning Date">
+            <Input type="date" className="h-10" />
+          </FormField>
+          <FormField label="Acceptance Certificate No">
+            <Input className="h-10" placeholder="Certificate number" />
+          </FormField>
+          <FormField label="Accepted By">
+            <Input className="h-10" placeholder="Authorized person" />
+          </FormField>
         </div>
       </div>
+
+      {/* Warranty */}
       <div>
         <h3 className="text-base font-extrabold text-foreground mb-5 pb-3 border-b border-border">
           Warranty
@@ -1823,9 +1806,7 @@ function InstallationTab() {
           </FormField>
           <FormField label="Warranty Status">
             <Select>
-              <SelectTrigger className="h-10">
-                <SelectValue placeholder="Auto-calculated" />
-              </SelectTrigger>
+              <SelectTrigger className="h-10"><SelectValue placeholder="Auto-calculated" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="ACTIVE">Active</SelectItem>
                 <SelectItem value="EXPIRED">Expired</SelectItem>
@@ -1833,6 +1814,25 @@ function InstallationTab() {
                 <SelectItem value="NA">Not Applicable</SelectItem>
               </SelectContent>
             </Select>
+          </FormField>
+          <FormField label="Warranty Provider">
+            <Input className="h-10" placeholder="OEM / Third Party" />
+          </FormField>
+          <FormField label="Warranty Contact">
+            <Input className="h-10" placeholder="Contact number / email" />
+          </FormField>
+          <FormField label="AMC After Warranty">
+            <Select>
+              <SelectTrigger className="h-10"><SelectValue placeholder="Select" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="yes">Yes - Planned</SelectItem>
+                <SelectItem value="no">No</SelectItem>
+                <SelectItem value="tbd">To Be Decided</SelectItem>
+              </SelectContent>
+            </Select>
+          </FormField>
+          <FormField label="Extended Warranty (Years)">
+            <Input type="number" className="h-10" placeholder="0" />
           </FormField>
         </div>
       </div>

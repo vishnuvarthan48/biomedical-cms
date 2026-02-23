@@ -23,6 +23,7 @@ import { ticketRegistrationRoute } from "../routes/ticket-registration.route";
 import { ticketMobileRoute } from "../routes/ticket-mobile.route";
 import { voucherSeriesRoute } from "../routes/voucher-series.route";
 import { locationsRoute } from "../routes/locations.route";
+import { notificationSettingsRoute } from "../routes/notification-settings.route";
 
 function RoleAwareRedirect() {
   const { userRole } = useAuth();
@@ -59,6 +60,7 @@ export const router = createBrowserRouter([
       ticketMobileRoute,
       voucherSeriesRoute,
       locationsRoute,
+      notificationSettingsRoute,
       { path: "*", element: <Navigate to={ROUTES.DASHBOARD} replace /> },
     ],
   },

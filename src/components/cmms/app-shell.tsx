@@ -185,6 +185,14 @@ const navItems: NavItem[] = [
     roles: ["tenant-admin", "platform-admin"],
   },
   {
+    id: MODULES.NOTIFICATION_SETTINGS,
+    label: "Notification Settings",
+    icon: Bell,
+    section: "Administration",
+    path: ROUTES.NOTIFICATION_SETTINGS,
+    roles: ["tenant-admin", "platform-admin"],
+  },
+  {
     id: MODULES.VOUCHER_SERIES,
     label: "Voucher Series",
     icon: Hash,

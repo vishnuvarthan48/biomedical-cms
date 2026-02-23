@@ -36,6 +36,14 @@ import {
   CollapsibleTrigger,
 } from "@/src/components/ui/collapsible";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/src/components/ui/dialog";
+import { Switch } from "@/src/components/ui/switch";
+import {
   Plus,
   Search,
   Eye,
@@ -52,7 +60,14 @@ import {
   Download,
   Trash2,
   X,
+  Stethoscope,
+  AlertCircle,
+  FileText,
+  CheckCircle2,
+  FolderOpen,
+  Building2,
 } from "lucide-react";
+import { mockUsers, mockOrganizations } from "@/src/lib/rbac-data";
 import { DeviceImageSection } from "./device-image-section";
 
 // ----- Types -----
@@ -68,6 +83,16 @@ interface DeviceMaster {
   status: "Active" | "Draft" | "Inactive";
   createdAt: string;
   linkedAssets: number;
+}
+
+interface ServiceMapping {
+  id: string;
+  serviceName: string;
+  himsProcedureCode: string;
+  price: number;
+  effectiveFrom: string;
+  effectiveTo: string;
+  active: boolean;
 }
 
 // ----- Mock Data -----
@@ -97,6 +122,28 @@ const riskBadge: Record<string, string> = {
 const deviceTypes = ["All", "Imaging", "Life Support", "Patient Monitoring", "Therapeutic", "Sterilization"];
 
 // ----- FormField helper -----
+// ----- Document categories for Device Master -----
+const defaultDocCategories = [
+  { name: "User Manual", desc: "Operating instructions and user guide from OEM", formats: "PDF" },
+  { name: "Service Manual", desc: "Technical service and repair manual", formats: "PDF" },
+  { name: "Regulatory Certificate", desc: "FDA, CE, BIS, or AERB certificates", formats: "PDF" },
+  { name: "Spare Parts Catalog", desc: "OEM spare parts list with part numbers", formats: "PDF, XLS" },
+  { name: "Factory Calibration Certificate", desc: "OEM calibration certificates and test reports", formats: "PDF" },
+  { name: "Safety Data Sheet (SDS)", desc: "Material safety and hazard information", formats: "PDF" },
+  { name: "Installation Guide", desc: "Site preparation and installation requirements", formats: "PDF, DOC" },
+  { name: "Training Material", desc: "Operator training documents and presentations", formats: "PDF, PPT" },
+];
+
+// ----- Org dropdown: filtered by current user's active memberships -----
+const CURRENT_USER_ID = "U-001";
+const _currentUser = mockUsers.find((u) => u.id === CURRENT_USER_ID)!;
+const _userActiveOrgIds = _currentUser.orgMemberships
+  .filter((m) => m.status === "Active")
+  .map((m) => m.orgId);
+const orgOptions = mockOrganizations
+  .filter((o) => _userActiveOrgIds.includes(o.id) && o.status === "Active")
+  .map((o) => ({ id: o.id, name: o.name, code: o.code }));
+
 function FormField({
   label,
   required,
@@ -357,15 +404,29 @@ function DeviceRegistrationForm({
     deviceName: device?.deviceName || "",
     genericName: "",
     deviceType: device?.deviceType || "",
+    deviceModel: device?.model || "",
+    ecri: "",
     manufacturer: device?.manufacturer || "",
-    model: device?.model || "",
+    modelNumber: "",
+    catalogNumber: "",
     country: device?.country || "",
     riskClass: device?.riskClass || "",
     lifespan: device?.lifespan || "",
     regulatoryApproval: "",
     description: "",
-    // Technical specs
-    powerReq: "",
+    // Organization / Location
+    orgId: "",
+    departmentName: "",
+    // Technical specs - Power
+    powerRating: "",
+    powerRatingTypical: "",
+    powerRatingMax: "",
+    inletPower: "",
+    voltage: "",
+    equipmentClass: "",
+    equipmentType: "",
+    powerSupplyType: "",
+    // Technical specs - Physical
     weight: "",
     dimensions: "",
     operatingTemp: "",
@@ -380,6 +441,110 @@ function DeviceRegistrationForm({
 
   const updateField = (key: string, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  // ----- Service Mapping state -----
+  const [services, setServices] = useState<ServiceMapping[]>(
+    isEdit
+      ? [
+          { id: "SVC-001", serviceName: "CT Brain", himsProcedureCode: "RAD_CT_BRAIN", price: 1800, effectiveFrom: "2026-02-01", effectiveTo: "", active: true },
+          { id: "SVC-002", serviceName: "CT Head", himsProcedureCode: "RAD_CT_HEAD", price: 2200, effectiveFrom: "2026-02-01", effectiveTo: "", active: true },
+          { id: "SVC-003", serviceName: "CT Abdomen", himsProcedureCode: "RAD_CT_ABDOMEN", price: 3500, effectiveFrom: "2026-01-15", effectiveTo: "2026-12-31", active: true },
+          { id: "SVC-004", serviceName: "CT Chest (HRCT)", himsProcedureCode: "RAD_CT_HRCT", price: 2800, effectiveFrom: "2026-03-01", effectiveTo: "", active: false },
+        ]
+      : [],
+  );
+  const [showSvcDialog, setShowSvcDialog] = useState(false);
+  const [editSvcId, setEditSvcId] = useState<string | null>(null);
+  const [svcName, setSvcName] = useState("");
+  const [svcHimsCode, setSvcHimsCode] = useState("");
+  const [svcPrice, setSvcPrice] = useState("");
+  const [svcFrom, setSvcFrom] = useState("");
+  const [svcTo, setSvcTo] = useState("");
+  const [svcActive, setSvcActive] = useState(true);
+  const [svcError, setSvcError] = useState("");
+
+  const resetSvcForm = () => {
+    setEditSvcId(null);
+    setSvcName(""); setSvcHimsCode(""); setSvcPrice(""); setSvcFrom(""); setSvcTo(""); setSvcActive(true); setSvcError("");
+  };
+
+  const openEditSvc = (svc: ServiceMapping) => {
+    setEditSvcId(svc.id);
+    setSvcName(svc.serviceName);
+    setSvcHimsCode(svc.himsProcedureCode);
+    setSvcPrice(String(svc.price));
+    setSvcFrom(svc.effectiveFrom);
+    setSvcTo(svc.effectiveTo);
+    setSvcActive(svc.active);
+    setSvcError("");
+    setShowSvcDialog(true);
+  };
+
+  const saveSvc = () => {
+    const name = svcName.trim();
+    const code = svcHimsCode.trim();
+    const price = parseFloat(svcPrice);
+
+    if (!name) { setSvcError("Service Name is required."); return; }
+    if (!code) { setSvcError("HIMS Procedure Code is required."); return; }
+    if (!svcPrice || isNaN(price) || price <= 0) { setSvcError("Standard Price must be greater than 0."); return; }
+
+    // Duplicate checks (exclude current row when editing)
+    const nameDup = services.find((s) => s.serviceName.toLowerCase() === name.toLowerCase() && s.id !== editSvcId);
+    if (nameDup) { setSvcError(`Duplicate: "${name}" already exists for this device.`); return; }
+    const codeDup = services.find((s) => s.himsProcedureCode === code && s.id !== editSvcId);
+    if (codeDup) { setSvcError(`Duplicate: HIMS Code "${code}" already mapped to "${codeDup.serviceName}".`); return; }
+
+    if (editSvcId) {
+      setServices((prev) =>
+        prev.map((s) => s.id === editSvcId ? { ...s, serviceName: name, himsProcedureCode: code, price, effectiveFrom: svcFrom, effectiveTo: svcTo, active: svcActive } : s),
+      );
+    } else {
+      setServices((prev) => [
+        ...prev,
+        { id: `SVC-${Date.now()}`, serviceName: name, himsProcedureCode: code, price, effectiveFrom: svcFrom, effectiveTo: svcTo, active: svcActive },
+      ]);
+    }
+    resetSvcForm();
+    setShowSvcDialog(false);
+  };
+
+  const deleteSvc = (id: string) => {
+    setServices((prev) => prev.filter((s) => s.id !== id));
+  };
+
+  // ----- Documents state (category-based, matches Asset Registration design) -----
+  const [docCategories, setDocCategories] = useState(defaultDocCategories);
+  const [docFiles, setDocFiles] = useState<Record<string, string[]>>({});
+  const [showDocCatForm, setShowDocCatForm] = useState(false);
+  const [newDocCatName, setNewDocCatName] = useState("");
+  const [newDocCatDesc, setNewDocCatDesc] = useState("");
+  const [newDocCatFormats, setNewDocCatFormats] = useState("PDF, DOC");
+
+  const simulateDocUpload = (catName: string) => {
+    setDocFiles((prev) => ({
+      ...prev,
+      [catName]: [...(prev[catName] || []), `${catName.replace(/\s+/g, "_")}_${Date.now()}.pdf`],
+    }));
+  };
+
+  const removeDocFile = (catName: string, fileIdx: number) => {
+    setDocFiles((prev) => ({
+      ...prev,
+      [catName]: prev[catName].filter((_, i) => i !== fileIdx),
+    }));
+  };
+
+  const addDocCategory = () => {
+    if (!newDocCatName.trim()) return;
+    setDocCategories((prev) => [...prev, { name: newDocCatName.trim(), desc: newDocCatDesc.trim() || "Custom document category", formats: newDocCatFormats.trim() || "PDF, DOC" }]);
+    setNewDocCatName(""); setNewDocCatDesc(""); setNewDocCatFormats("PDF, DOC"); setShowDocCatForm(false);
+  };
+
+  const removeDocCategory = (catName: string) => {
+    setDocCategories((prev) => prev.filter((c) => c.name !== catName));
+    setDocFiles((prev) => { const next = { ...prev }; delete next[catName]; return next; });
   };
 
   return (
@@ -424,27 +589,43 @@ function DeviceRegistrationForm({
               <FormField label="Device Name" required>
                 <Input className="h-10" placeholder="e.g. MRI Scanner" value={form.deviceName} onChange={(e) => updateField("deviceName", e.target.value)} />
               </FormField>
-              <FormField label="Generic Name">
-                <Input className="h-10" placeholder="e.g. Magnetic Resonance Imaging System" value={form.genericName} onChange={(e) => updateField("genericName", e.target.value)} />
-              </FormField>
               <FormField label="Device Type" required>
                 <Select value={form.deviceType} onValueChange={(v) => updateField("deviceType", v)}>
                   <SelectTrigger className="h-10"><SelectValue placeholder="Select type" /></SelectTrigger>
                   <SelectContent>
-                    {["Imaging", "Life Support", "Patient Monitoring", "Therapeutic", "Sterilization", "Laboratory", "Surgical"].map((t) => (
+                    {deviceTypes.filter((t) => t !== "All").map((t) => (
                       <SelectItem key={t} value={t}>{t}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </FormField>
+              <FormField label="Generic Name" required>
+                <Input className="h-10" placeholder="e.g. Magnetic Resonance Imaging System" value={form.genericName} onChange={(e) => updateField("genericName", e.target.value)} />
+              </FormField>
+              <FormField label="Device Model" required>
+                <Input className="h-10" placeholder="e.g. Magnetom Vida 3T" value={form.deviceModel} onChange={(e) => updateField("deviceModel", e.target.value)} />
+              </FormField>
+              <FormField label="ECRI Code">
+                <Input className="h-10" placeholder="e.g. 18-483" value={form.ecri} onChange={(e) => updateField("ecri", e.target.value)} />
+              </FormField>
               <FormField label="Manufacturer" required>
                 <Input className="h-10" placeholder="e.g. Siemens Healthineers" value={form.manufacturer} onChange={(e) => updateField("manufacturer", e.target.value)} />
               </FormField>
-              <FormField label="Model" required>
-                <Input className="h-10" placeholder="e.g. Magnetom Vida 3T" value={form.model} onChange={(e) => updateField("model", e.target.value)} />
+              <FormField label="Model Number">
+                <Input className="h-10" placeholder="e.g. MV-3T-2024" value={form.modelNumber} onChange={(e) => updateField("modelNumber", e.target.value)} />
               </FormField>
-              <FormField label="Country of Origin">
-                <Input className="h-10" placeholder="e.g. Germany" value={form.country} onChange={(e) => updateField("country", e.target.value)} />
+              <FormField label="Catalog Number">
+                <Input className="h-10" placeholder="e.g. CAT-MRI-001" value={form.catalogNumber} onChange={(e) => updateField("catalogNumber", e.target.value)} />
+              </FormField>
+              <FormField label="Country of Origin" required>
+                <Select value={form.country} onValueChange={(v) => updateField("country", v)}>
+                  <SelectTrigger className="h-10"><SelectValue placeholder="Select country" /></SelectTrigger>
+                  <SelectContent>
+                    {["India", "USA", "Germany", "Japan", "China", "Netherlands", "Israel", "South Korea", "UK", "France", "Italy", "Switzerland"].map((c) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </FormField>
               <FormField label="Risk Classification" required>
                 <Select value={form.riskClass} onValueChange={(v) => updateField("riskClass", v)}>
@@ -464,13 +645,155 @@ function DeviceRegistrationForm({
               </FormField>
             </div>
 
+            {/* Organization / Department Assignment */}
+            <div className="mt-5 pt-4 border-t border-border">
+              <div className="flex items-center gap-2 mb-4">
+                <Building2 className="w-4 h-4 text-[#00BCD4]" />
+                <h4 className="text-sm font-bold text-foreground">Organization & Department</h4>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField label="Hospital / Clinic / Organization" required>
+                  <Select value={form.orgId} onValueChange={(v) => updateField("orgId", v)}>
+                    <SelectTrigger className="h-10"><SelectValue placeholder="Select organization" /></SelectTrigger>
+                    <SelectContent>
+                      {orgOptions.map((org) => (
+                        <SelectItem key={org.id} value={org.id}>
+                          <span className="font-semibold">{org.name}</span>
+                          <span className="text-muted-foreground ml-1.5 font-mono text-[10px]">{org.code}</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormField>
+                <FormField label="Department Name">
+                  <Select value={form.departmentName} onValueChange={(v) => updateField("departmentName", v)}>
+                    <SelectTrigger className="h-10"><SelectValue placeholder="Select department" /></SelectTrigger>
+                    <SelectContent>
+                      {["Radiology", "Cardiology", "ICU", "Emergency", "OPD", "General Surgery OT", "Cardiac Surgery OT", "Neuro Surgery OT", "CSSD", "Laboratory", "Pathology", "Physiotherapy"].map((d) => (
+                        <SelectItem key={d} value={d}>{d}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormField>
+              </div>
+            </div>
+
             {/* Description */}
-            <div className="mt-5">
-              <FormField label="Description">
-                <Textarea className="min-h-[80px]" placeholder="Enter device description..." value={form.description} onChange={(e) => updateField("description", e.target.value)} />
+            <div className="mt-5 pt-4 border-t border-border">
+              <FormField label="Description" required>
+                <Textarea className="min-h-[80px]" placeholder="Enter device description, purpose, and key features..." value={form.description} onChange={(e) => updateField("description", e.target.value)} />
+              </FormField>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Technical Specifications */}
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-6">
+            <h3 className="text-base font-extrabold text-foreground mb-5 pb-3 border-b border-border">
+              Technical Specifications
+            </h3>
+
+            {/* Power & Electrical */}
+            <h4 className="text-sm font-bold text-foreground mb-3">Power & Electrical</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+              <FormField label="Power Rating">
+                <Input className="h-10" placeholder="e.g. 5 kVA" value={form.powerRating} onChange={(e) => updateField("powerRating", e.target.value)} />
+              </FormField>
+              <FormField label="Power Rating Typical">
+                <Input className="h-10" placeholder="e.g. 3.5 kVA" value={form.powerRatingTypical} onChange={(e) => updateField("powerRatingTypical", e.target.value)} />
+              </FormField>
+              <FormField label="Power Rating Max">
+                <Input className="h-10" placeholder="e.g. 8 kVA" value={form.powerRatingMax} onChange={(e) => updateField("powerRatingMax", e.target.value)} />
+              </FormField>
+              <FormField label="Inlet Power">
+                <Select value={form.inletPower} onValueChange={(v) => updateField("inletPower", v)}>
+                  <SelectTrigger className="h-10"><SelectValue placeholder="Select inlet power" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="single-phase">Single Phase</SelectItem>
+                    <SelectItem value="three-phase">Three Phase</SelectItem>
+                    <SelectItem value="dc">DC Power</SelectItem>
+                    <SelectItem value="battery">Battery Operated</SelectItem>
+                    <SelectItem value="ups-backed">UPS Backed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FormField>
+              <FormField label="Voltage">
+                <Select value={form.voltage} onValueChange={(v) => updateField("voltage", v)}>
+                  <SelectTrigger className="h-10"><SelectValue placeholder="Select voltage" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="110V">110V</SelectItem>
+                    <SelectItem value="220V">220V</SelectItem>
+                    <SelectItem value="230V">230V</SelectItem>
+                    <SelectItem value="240V">240V</SelectItem>
+                    <SelectItem value="415V">415V (3-Phase)</SelectItem>
+                    <SelectItem value="12V-DC">12V DC</SelectItem>
+                    <SelectItem value="24V-DC">24V DC</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FormField>
+              <FormField label="Power Supply Type">
+                <Select value={form.powerSupplyType} onValueChange={(v) => updateField("powerSupplyType", v)}>
+                  <SelectTrigger className="h-10"><SelectValue placeholder="Select type" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ac-mains">AC Mains</SelectItem>
+                    <SelectItem value="battery">Battery</SelectItem>
+                    <SelectItem value="dual">Dual (AC + Battery)</SelectItem>
+                    <SelectItem value="solar">Solar</SelectItem>
+                    <SelectItem value="ups">UPS</SelectItem>
+                  </SelectContent>
+                </Select>
               </FormField>
             </div>
 
+            {/* Equipment Classification */}
+            <h4 className="text-sm font-bold text-foreground mb-3">Equipment Classification</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <FormField label="Equipment Class">
+                <Select value={form.equipmentClass} onValueChange={(v) => updateField("equipmentClass", v)}>
+                  <SelectTrigger className="h-10"><SelectValue placeholder="Select class" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="class-i">Class I - Basic Insulation + Earth</SelectItem>
+                    <SelectItem value="class-ii">Class II - Double / Reinforced Insulation</SelectItem>
+                    <SelectItem value="class-iii">Class III - Safety Extra-Low Voltage</SelectItem>
+                    <SelectItem value="ip-rated">IP Rated</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FormField>
+              <FormField label="Equipment Type">
+                <Select value={form.equipmentType} onValueChange={(v) => updateField("equipmentType", v)}>
+                  <SelectTrigger className="h-10"><SelectValue placeholder="Select type" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="type-b">Type B - Body Contact</SelectItem>
+                    <SelectItem value="type-bf">Type BF - Body Floating</SelectItem>
+                    <SelectItem value="type-cf">Type CF - Cardiac Floating</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FormField>
+            </div>
+
+            {/* Physical Specifications */}
+            <h4 className="text-sm font-bold text-foreground mb-3">Physical Specifications</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <FormField label="Weight">
+                <Input className="h-10" placeholder="e.g. 2500 kg" value={form.weight} onChange={(e) => updateField("weight", e.target.value)} />
+              </FormField>
+              <FormField label="Dimensions">
+                <Input className="h-10" placeholder="e.g. 250 x 170 x 200 cm" value={form.dimensions} onChange={(e) => updateField("dimensions", e.target.value)} />
+              </FormField>
+              <FormField label="Operating Temperature">
+                <Input className="h-10" placeholder="e.g. 18-24°C" value={form.operatingTemp} onChange={(e) => updateField("operatingTemp", e.target.value)} />
+              </FormField>
+              <FormField label="Connectivity">
+                <Input className="h-10" placeholder="e.g. DICOM, HL7, Wi-Fi" value={form.connectivity} onChange={(e) => updateField("connectivity", e.target.value)} />
+              </FormField>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Device Image & Depreciation */}
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-6">
             {/* Device Image Section */}
             <DeviceImageSection />
 
@@ -514,55 +837,136 @@ function DeviceRegistrationForm({
           </CardContent>
         </Card>
 
-        {/* Technical Specifications */}
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-6">
-            <h3 className="text-base font-extrabold text-foreground mb-5 pb-3 border-b border-border">
-              Technical Specifications
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <FormField label="Power Requirements">
-                <Input className="h-10" placeholder="e.g. 220V / 50Hz / 30A" value={form.powerReq} onChange={(e) => updateField("powerReq", e.target.value)} />
-              </FormField>
-              <FormField label="Weight">
-                <Input className="h-10" placeholder="e.g. 2500 kg" value={form.weight} onChange={(e) => updateField("weight", e.target.value)} />
-              </FormField>
-              <FormField label="Dimensions">
-                <Input className="h-10" placeholder="e.g. 250 x 170 x 200 cm" value={form.dimensions} onChange={(e) => updateField("dimensions", e.target.value)} />
-              </FormField>
-              <FormField label="Operating Temperature">
-                <Input className="h-10" placeholder="e.g. 18-24°C" value={form.operatingTemp} onChange={(e) => updateField("operatingTemp", e.target.value)} />
-              </FormField>
-              <FormField label="Connectivity">
-                <Input className="h-10" placeholder="e.g. DICOM, HL7, Wi-Fi" value={form.connectivity} onChange={(e) => updateField("connectivity", e.target.value)} />
-              </FormField>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Documents Section */}
+        {/* Documents Section – category-based (matches Asset Registration design) */}
         <Collapsible open={docsOpen} onOpenChange={setDocsOpen}>
           <Card className="border-0 shadow-sm">
             <CardContent className="p-6">
               <CollapsibleTrigger asChild>
                 <button className="flex items-center justify-between w-full text-left">
-                  <h3 className="text-base font-extrabold text-foreground">Documents</h3>
+                  <div className="flex items-center gap-2.5">
+                    <FolderOpen className="w-5 h-5 text-[#00BCD4]" />
+                    <h3 className="text-base font-extrabold text-foreground">Documents</h3>
+                    {Object.keys(docFiles).filter((k) => docFiles[k]?.length > 0).length > 0 && (
+                      <Badge className="bg-[#10B981]/10 text-[#10B981] border-0 text-xs font-bold">
+                        {Object.keys(docFiles).filter((k) => docFiles[k]?.length > 0).length}/{docCategories.length}
+                      </Badge>
+                    )}
+                  </div>
                   {docsOpen ? <ChevronUp className="w-5 h-5 text-muted-foreground" /> : <ChevronDown className="w-5 h-5 text-muted-foreground" />}
                 </button>
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <div className="mt-4 pt-4 border-t border-border">
-                  <p className="text-sm text-muted-foreground mb-4">Upload device master documents such as user manuals, service manuals, and regulatory certificates.</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {["User Manual", "Service Manual", "Regulatory Certificate", "Spare Parts Catalog"].map((doc) => (
-                      <div key={doc} className="flex flex-col gap-2">
-                        <p className="text-sm font-bold text-foreground">{doc}</p>
-                        <div className="border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center min-h-[100px] cursor-pointer hover:border-[#00BCD4]/50 hover:bg-[#00BCD4]/5 transition-all border-border">
-                          <Upload className="w-6 h-6 text-muted-foreground/50 mb-2" />
-                          <span className="text-xs text-muted-foreground font-medium">Click to upload</span>
-                        </div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Upload documents by category. Click the upload area or drag and drop files.</p>
+                      <p className="text-xs text-muted-foreground mt-1 font-medium">
+                        {Object.keys(docFiles).filter((k) => docFiles[k]?.length > 0).length} of {docCategories.length} categories have uploads
+                      </p>
+                    </div>
+                    <Button variant="outline" className="text-xs font-semibold h-9 px-4 gap-1.5" onClick={() => setShowDocCatForm(!showDocCatForm)}>
+                      <Plus className="w-3.5 h-3.5" /> Additional Category
+                    </Button>
+                  </div>
+
+                  {/* Add Custom Category Inline Form */}
+                  {showDocCatForm && (
+                    <div className="rounded-xl border-2 border-dashed border-[#00BCD4]/40 bg-[#00BCD4]/5 p-5 mb-4">
+                      <h4 className="text-sm font-bold text-foreground mb-4">Add New Document Category</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <FormField label="Category Name" required>
+                          <Input className="h-10" placeholder="e.g. Warranty Certificate" value={newDocCatName} onChange={(e) => setNewDocCatName(e.target.value)} />
+                        </FormField>
+                        <FormField label="Description">
+                          <Input className="h-10" placeholder="e.g. Equipment warranty documents" value={newDocCatDesc} onChange={(e) => setNewDocCatDesc(e.target.value)} />
+                        </FormField>
+                        <FormField label="Accepted Formats">
+                          <Input className="h-10" placeholder="e.g. PDF, DOC, XLS" value={newDocCatFormats} onChange={(e) => setNewDocCatFormats(e.target.value)} />
+                        </FormField>
                       </div>
-                    ))}
+                      <div className="flex items-center gap-2 mt-4">
+                        <Button className="text-white border-0 text-xs font-semibold h-9 px-5" style={{ background: "linear-gradient(135deg, #00BCD4, #00838F)" }} disabled={!newDocCatName.trim()} onClick={addDocCategory}>
+                          <Plus className="w-3.5 h-3.5 mr-1" /> Add Category
+                        </Button>
+                        <Button variant="outline" className="text-xs font-semibold h-9 px-4" onClick={() => { setShowDocCatForm(false); setNewDocCatName(""); setNewDocCatDesc(""); setNewDocCatFormats("PDF, DOC"); }}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Category rows – alternating left/right layout */}
+                  <div className="flex flex-col gap-3">
+                    {docCategories.map((cat, idx) => {
+                      const isEven = idx % 2 === 0;
+                      const files = docFiles[cat.name] || [];
+                      const hasFiles = files.length > 0;
+                      const isCustom = !defaultDocCategories.some((d) => d.name === cat.name);
+
+                      return (
+                        <div key={cat.name} className={cn(
+                          "flex rounded-xl border overflow-hidden transition-all",
+                          hasFiles ? "border-[#10B981]/30 bg-[#10B981]/5" : "border-border",
+                          isEven ? "flex-row" : "flex-row-reverse",
+                        )}>
+                          {/* Info side */}
+                          <div className={cn("flex-1 p-4 flex flex-col justify-center", isEven ? "pr-2" : "pl-2")}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className={cn(
+                                "flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold shrink-0",
+                                hasFiles ? "bg-[#10B981] text-white" : "bg-muted text-muted-foreground",
+                              )}>
+                                {hasFiles ? <CheckCircle2 className="w-3.5 h-3.5" /> : idx + 1}
+                              </span>
+                              <h4 className="text-sm font-semibold text-foreground">{cat.name}</h4>
+                              {isCustom && (
+                                <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#00BCD4]/10 text-[#00BCD4]">Custom</span>
+                              )}
+                              {isCustom && (
+                                <button className="ml-auto text-muted-foreground hover:text-[#EF4444] transition-colors" onClick={() => removeDocCategory(cat.name)} title="Remove category">
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                            <p className={cn("text-xs text-muted-foreground ml-8", isEven ? "text-left" : "text-right")}>{cat.desc}</p>
+                            {hasFiles && (
+                              <div className={cn("flex flex-wrap gap-1.5 mt-2 ml-8", isEven ? "justify-start" : "justify-end")}>
+                                {files.map((f, fIdx) => (
+                                  <span key={fIdx} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-card border border-border text-xs text-foreground">
+                                    <FileText className="w-3 h-3 text-[#00BCD4]" />
+                                    {f.length > 25 ? f.substring(0, 25) + "..." : f}
+                                    <button className="ml-0.5 text-muted-foreground hover:text-[#EF4444]" onClick={() => removeDocFile(cat.name, fIdx)}>
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Upload zone side */}
+                          <div
+                            className={cn(
+                              "w-48 shrink-0 border-dashed flex flex-col items-center justify-center gap-2 p-4 cursor-pointer transition-colors group",
+                              isEven ? "border-l" : "border-r",
+                              hasFiles ? "border-[#10B981]/30 hover:border-[#10B981]" : "border-border hover:border-[#00BCD4]",
+                            )}
+                            onClick={() => simulateDocUpload(cat.name)}
+                          >
+                            <div className={cn(
+                              "w-10 h-10 rounded-full flex items-center justify-center transition-colors",
+                              hasFiles ? "bg-[#10B981]/10 group-hover:bg-[#10B981]/20" : "bg-muted group-hover:bg-[#00BCD4]/10",
+                            )}>
+                              <Upload className={cn("w-4 h-4 transition-colors", hasFiles ? "text-[#10B981]" : "text-muted-foreground group-hover:text-[#00BCD4]")} />
+                            </div>
+                            <span className="text-xs font-semibold text-muted-foreground group-hover:text-foreground text-center">
+                              {hasFiles ? "Add more" : "Drop file here"}
+                            </span>
+                            <span className="text-xs text-muted-foreground">{cat.formats}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </CollapsibleContent>
@@ -570,55 +974,157 @@ function DeviceRegistrationForm({
           </Card>
         </Collapsible>
 
-        {/* Service Providers */}
+        {/* Service Mapping */}
         <Collapsible open={servicesOpen} onOpenChange={setServicesOpen}>
           <Card className="border-0 shadow-sm">
             <CardContent className="p-6">
               <CollapsibleTrigger asChild>
                 <button className="flex items-center justify-between w-full text-left">
-                  <h3 className="text-base font-extrabold text-foreground">Service Providers / AMC/CMC</h3>
+                  <div className="flex items-center gap-2.5">
+                    <Stethoscope className="w-5 h-5 text-[#00BCD4]" />
+                    <h3 className="text-base font-extrabold text-foreground">Service Mapping</h3>
+                    {services.length > 0 && (
+                      <Badge className="bg-[#00BCD4]/10 text-[#00BCD4] border-0 text-xs font-bold">{services.length}</Badge>
+                    )}
+                  </div>
                   {servicesOpen ? <ChevronUp className="w-5 h-5 text-muted-foreground" /> : <ChevronDown className="w-5 h-5 text-muted-foreground" />}
                 </button>
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <div className="mt-4 pt-4 border-t border-border">
-                  <p className="text-sm text-muted-foreground mb-4">Add authorized service providers, AMC, or CMC details.</p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <FormField label="Service Provider">
-                      <Input className="h-10" placeholder="e.g. Siemens Technical Services" />
-                    </FormField>
-                    <FormField label="Contract Type">
-                      <Select>
-                        <SelectTrigger className="h-10"><SelectValue placeholder="Select type" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="amc">AMC (Annual Maintenance)</SelectItem>
-                          <SelectItem value="cmc">CMC (Comprehensive)</SelectItem>
-                          <SelectItem value="warranty">Under Warranty</SelectItem>
-                          <SelectItem value="on-call">On-Call Basis</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </FormField>
-                    <FormField label="Contact Number">
-                      <Input className="h-10" placeholder="e.g. +91 9876543210" />
-                    </FormField>
-                    <FormField label="Email">
-                      <Input className="h-10" placeholder="e.g. service@vendor.com" />
-                    </FormField>
-                    <FormField label="Contract Start">
-                      <Input className="h-10" type="date" />
-                    </FormField>
-                    <FormField label="Contract End">
-                      <Input className="h-10" type="date" />
-                    </FormField>
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm text-muted-foreground">Map the services / procedures this device can perform with their HIMS codes and pricing.</p>
+                    <Button
+                      className="text-white border-0 h-9 text-xs font-semibold gap-1.5 px-4"
+                      style={{ background: "linear-gradient(135deg, #00BCD4, #00838F)" }}
+                      onClick={() => { resetSvcForm(); setShowSvcDialog(true); }}
+                    >
+                      <Plus className="w-4 h-4" /> Add Service
+                    </Button>
                   </div>
-                  <Button variant="outline" className="mt-4 text-sm font-semibold gap-2">
-                    <Plus className="w-4 h-4" /> Add Another Provider
-                  </Button>
+
+                  {services.length === 0 ? (
+                    <div className="border-2 border-dashed border-border rounded-xl py-12 flex flex-col items-center gap-3">
+                      <Stethoscope className="w-10 h-10 text-muted-foreground/30" />
+                      <p className="text-sm font-semibold text-foreground">No services mapped yet</p>
+                      <p className="text-xs text-muted-foreground">Click "Add Service" to map procedures this device can perform</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-xl border border-border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-[#1B2A3D]">
+                            <TableHead className="text-white font-bold text-xs">Sl.</TableHead>
+                            <TableHead className="text-white font-bold text-xs">Service Name</TableHead>
+                            <TableHead className="text-white font-bold text-xs">HIMS Code</TableHead>
+                            <TableHead className="text-white font-bold text-xs text-right">Price</TableHead>
+                            <TableHead className="text-white font-bold text-xs">Effective From</TableHead>
+                            <TableHead className="text-white font-bold text-xs">Effective To</TableHead>
+                            <TableHead className="text-white font-bold text-xs text-center">Status</TableHead>
+                            <TableHead className="text-white font-bold text-xs text-center">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {services.map((svc, idx) => (
+                            <TableRow key={svc.id} className="hover:bg-muted/20">
+                              <TableCell className="text-xs font-semibold text-muted-foreground">{idx + 1}</TableCell>
+                              <TableCell className="text-xs font-bold text-foreground">{svc.serviceName}</TableCell>
+                              <TableCell>
+                                <code className="text-xs font-mono bg-muted/50 px-2 py-0.5 rounded">{svc.himsProcedureCode}</code>
+                              </TableCell>
+                              <TableCell className="text-xs font-bold text-foreground text-right font-mono">
+                                {svc.price.toLocaleString("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 0 })}
+                              </TableCell>
+                              <TableCell className="text-xs text-foreground">{svc.effectiveFrom || "-"}</TableCell>
+                              <TableCell className="text-xs text-foreground">{svc.effectiveTo || "-"}</TableCell>
+                              <TableCell className="text-center">
+                                <Badge className={cn("text-[10px] font-bold border-0 px-2.5", svc.active ? "bg-[#D1FAE5] text-[#059669]" : "bg-[#F3F4F6] text-[#6B7280]")}>
+                                  {svc.active ? "Active" : "Inactive"}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-[#00BCD4]" title="Edit" onClick={() => openEditSvc(svc)}>
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </Button>
+                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive" title="Delete" onClick={() => deleteSvc(svc.id)}>
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
                 </div>
               </CollapsibleContent>
             </CardContent>
           </Card>
         </Collapsible>
+
+        {/* Add/Edit Service Dialog */}
+        <Dialog open={showSvcDialog} onOpenChange={(o) => { if (!o) resetSvcForm(); setShowSvcDialog(o); }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-extrabold text-foreground flex items-center gap-2">
+                <Stethoscope className="w-5 h-5 text-[#00BCD4]" />
+                {editSvcId ? "Edit Service" : "Add Service"}
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              {svcError && (
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-xs font-semibold">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  {svcError}
+                </div>
+              )}
+
+              <FormField label="Service Name" required>
+                <Input className="h-10" placeholder="e.g. CT Brain, CT Head, MRI Knee" value={svcName} onChange={(e) => setSvcName(e.target.value)} />
+              </FormField>
+
+              <FormField label="HIMS Procedure Code" required>
+                <Input className="h-10 font-mono" placeholder="e.g. RAD_CT_BRAIN" value={svcHimsCode} onChange={(e) => setSvcHimsCode(e.target.value.toUpperCase())} />
+                <p className="text-[10px] text-muted-foreground -mt-1">Required for future HIMS API integration. Must be unique per device.</p>
+              </FormField>
+
+              <FormField label="Standard Price" required>
+                <Input className="h-10 font-mono" type="number" min="1" step="0.01" placeholder="e.g. 1800" value={svcPrice} onChange={(e) => setSvcPrice(e.target.value)} />
+              </FormField>
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="Effective From">
+                  <Input className="h-10" type="date" value={svcFrom} onChange={(e) => setSvcFrom(e.target.value)} />
+                </FormField>
+                <FormField label="Effective To">
+                  <Input className="h-10" type="date" value={svcTo} onChange={(e) => setSvcTo(e.target.value)} />
+                </FormField>
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
+                <div>
+                  <p className="text-sm font-bold text-foreground">Active</p>
+                  <p className="text-[10px] text-muted-foreground">Only active services are visible to HIMS</p>
+                </div>
+                <Switch checked={svcActive} onCheckedChange={setSvcActive} />
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2">
+              <Button variant="outline" className="h-10 text-sm font-semibold" onClick={() => { resetSvcForm(); setShowSvcDialog(false); }}>Cancel</Button>
+              <Button
+                className="text-white border-0 h-10 text-sm font-semibold gap-1.5 px-5"
+                style={{ background: "linear-gradient(135deg, #00BCD4, #00838F)" }}
+                onClick={saveSvc}
+              >
+                <Save className="w-4 h-4" /> {editSvcId ? "Update" : "Add"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
