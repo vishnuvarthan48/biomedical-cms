@@ -495,24 +495,9 @@ INSERT INTO maintenance_types (type_code, type_name, sort_order) VALUES
     ('OTHER', 'Other Maintenance', 7)
 ON CONFLICT (type_code) DO NOTHING;
 
--- 1bb. Maintenance Frequencies (FK for Frequency dropdown)
-CREATE TABLE IF NOT EXISTS maintenance_frequencies (
-    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    frequency_code  VARCHAR(20) UNIQUE NOT NULL,
-    frequency_name  VARCHAR(50) NOT NULL,
-    interval_months INT,                               -- for auto-calculation of next due date
-    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-INSERT INTO maintenance_frequencies (frequency_code, frequency_name, interval_months) VALUES
-    ('MONTHLY', 'Monthly', 1),
-    ('BI_MONTHLY', '2 Months', 2),
-    ('QUARTERLY', '3 Months', 3),
-    ('SEMI_ANNUAL', '6 Months', 6),
-    ('ANNUAL', 'Yearly', 12),
-    ('CUSTOM', 'Custom', NULL)
-ON CONFLICT (frequency_code) DO NOTHING;
+-- 1bb. Maintenance Frequencies lookup table removed.
+--      Frequency is now captured as a direct integer (nos in months)
+--      on asset_maintenance_schedules.frequency_months column.
 
 -- 1cc. Maintenance Assigned To (FK for Assigned To dropdown)
 CREATE TABLE IF NOT EXISTS maintenance_assignees (
@@ -1034,8 +1019,8 @@ CREATE TABLE IF NOT EXISTS asset_maintenance_schedules (
     maintenance_type_id     UUID NOT NULL REFERENCES maintenance_types(id),
     is_enabled              BOOLEAN NOT NULL DEFAULT FALSE,
     start_date              DATE,
-    frequency_id            UUID REFERENCES maintenance_frequencies(id),
-    next_due_date           DATE,                                  -- Auto-calculated
+    frequency_months        INT CHECK (frequency_months >= 1),        -- Nos in months (e.g. 3 = every 3 months)
+    next_due_date           DATE,                                     -- Auto-calculated: start_date + frequency_months
     assigned_to_id          UUID REFERENCES maintenance_assignees(id),
     created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -1045,17 +1030,14 @@ CREATE TABLE IF NOT EXISTS asset_maintenance_schedules (
 CREATE INDEX idx_maint_schedules_asset ON asset_maintenance_schedules(asset_id);
 CREATE INDEX idx_maint_schedules_due ON asset_maintenance_schedules(next_due_date);
 
--- Auto-calculate next_due_date from start_date + frequency
+-- Auto-calculate next_due_date from start_date + frequency_months
 CREATE OR REPLACE FUNCTION calc_next_due_date()
 RETURNS TRIGGER AS $$
-DECLARE
-    interval_m INT;
 BEGIN
-    IF NEW.is_enabled AND NEW.start_date IS NOT NULL AND NEW.frequency_id IS NOT NULL THEN
-        SELECT interval_months INTO interval_m FROM maintenance_frequencies WHERE id = NEW.frequency_id;
-        IF interval_m IS NOT NULL THEN
-            NEW.next_due_date := NEW.start_date + (interval_m * INTERVAL '1 month');
-        END IF;
+    IF NEW.is_enabled AND NEW.start_date IS NOT NULL AND NEW.frequency_months IS NOT NULL THEN
+        NEW.next_due_date := NEW.start_date + (NEW.frequency_months * INTERVAL '1 month');
+    ELSE
+        NEW.next_due_date := NULL;
     END IF;
     RETURN NEW;
 END;

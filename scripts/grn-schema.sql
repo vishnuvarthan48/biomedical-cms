@@ -33,30 +33,35 @@ COMMENT ON TABLE hospitals IS 'Master list of hospitals in the network';
 -- 1b. Biomedical Stores (Store Master)
 CREATE TABLE IF NOT EXISTS biomedical_stores (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    hospital_id     UUID NOT NULL REFERENCES hospitals(id) ON DELETE RESTRICT,
+    tenant_id       BIGINT NOT NULL,
+    org_id          BIGINT NOT NULL,
     store_name      VARCHAR(200) NOT NULL,
     stock_source    VARCHAR(30) NOT NULL DEFAULT 'Both'
                     CHECK (stock_source IN ('Direct Purchase', 'External ERP', 'Both')),
     contact_person  VARCHAR(150),
     location        VARCHAR(200),
     is_default      BOOLEAN NOT NULL DEFAULT FALSE,
-    status          VARCHAR(20) NOT NULL DEFAULT 'Active'
-                    CHECK (status IN ('Active', 'Inactive')),
+    is_active       VARCHAR(20) NOT NULL DEFAULT 'ACTIVE'
+                    CHECK (is_active IN ('ACTIVE', 'INACTIVE', 'DELETED')),
     remarks         TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(tenant_id, org_id, store_name)
 );
 
-COMMENT ON TABLE biomedical_stores IS 'Biomedical store master -- each hospital can have multiple stores';
+COMMENT ON TABLE biomedical_stores IS 'Biomedical store master -- each organization can have multiple stores';
 
-CREATE INDEX idx_bio_stores_hospital ON biomedical_stores(hospital_id);
+CREATE INDEX idx_bio_stores_tenant_org ON biomedical_stores(tenant_id, org_id);
+CREATE INDEX idx_bio_stores_active ON biomedical_stores(is_active);
+CREATE INDEX idx_bio_stores_default ON biomedical_stores(is_default) WHERE is_active = 'ACTIVE';
 
 -- 1c. Item Master (Biomedical Spares / Consumables / Accessories)
 CREATE TABLE IF NOT EXISTS item_master (
-    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    hospital_id         UUID NOT NULL REFERENCES hospitals(id) ON DELETE RESTRICT,
+    id                  BIGINT PRIMARY KEY,
+    tenant_id           BIGINT NOT NULL,
+    org_id              BIGINT NOT NULL,
     store_id            UUID REFERENCES biomedical_stores(id) ON DELETE SET NULL,
-    item_code           VARCHAR(50) UNIQUE NOT NULL,
+    item_code           VARCHAR(50) NOT NULL,
     item_name           VARCHAR(250) NOT NULL,
     part_number         VARCHAR(100),
     item_type           VARCHAR(30) NOT NULL
@@ -71,11 +76,12 @@ CREATE TABLE IF NOT EXISTS item_master (
     batch_required      BOOLEAN NOT NULL DEFAULT FALSE,
     expiry_required     BOOLEAN NOT NULL DEFAULT FALSE,
     serial_tracking     BOOLEAN NOT NULL DEFAULT FALSE,
-    status              VARCHAR(20) NOT NULL DEFAULT 'Active'
-                        CHECK (status IN ('Active', 'Inactive')),
+    is_active           VARCHAR(20) NOT NULL DEFAULT 'ACTIVE'
+                        CHECK (is_active IN ('ACTIVE', 'INACTIVE', 'DELETED')),
     current_stock       DECIMAL(12,2) NOT NULL DEFAULT 0,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(tenant_id, org_id, item_code)
 );
 
 COMMENT ON TABLE item_master IS 'Biomedical item master -- spares, consumables, accessories with tracking flags';
@@ -83,29 +89,77 @@ COMMENT ON COLUMN item_master.shelf_life_months IS 'Default shelf life from Stor
 COMMENT ON COLUMN item_master.batch_required IS 'TRUE for consumables that need batch tracking';
 COMMENT ON COLUMN item_master.serial_tracking IS 'TRUE for spares/accessories that need serial number tracking';
 
-CREATE INDEX idx_item_master_hospital ON item_master(hospital_id);
+CREATE INDEX idx_item_master_tenant_org ON item_master(tenant_id, org_id);
 CREATE INDEX idx_item_master_store ON item_master(store_id);
 CREATE INDEX idx_item_master_type ON item_master(item_type);
 CREATE INDEX idx_item_master_code ON item_master(item_code);
+CREATE INDEX idx_item_master_active ON item_master(is_active);
 
--- 1d. Vendors
+-- 1d. Vendors (Comprehensive Vendor Master aligned with Vendor Registration form)
 CREATE TABLE IF NOT EXISTS vendors (
-    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    vendor_name     VARCHAR(250) NOT NULL,
-    vendor_code     VARCHAR(50) UNIQUE,
-    contact_person  VARCHAR(150),
-    phone           VARCHAR(30),
-    email           VARCHAR(150),
-    address         TEXT,
-    gst_number      VARCHAR(50),
-    status          VARCHAR(20) NOT NULL DEFAULT 'Active'
-                    CHECK (status IN ('Active', 'Inactive')),
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    tenant_id           BIGINT NOT NULL,
+    org_id              BIGINT NOT NULL,
+    
+    -- Basic Information
+    vendor_type         VARCHAR(20) NOT NULL DEFAULT 'Local'
+                        CHECK (vendor_type IN ('Local', 'International')),
+    vendor_name         VARCHAR(250) NOT NULL,
+    legal_name          VARCHAR(250),
+    vendor_code         VARCHAR(50),
+    country             VARCHAR(100),
+    website             TEXT,
+    
+    -- Company Contact
+    company_phone       VARCHAR(30),
+    company_mobile      VARCHAR(30),
+    company_email       VARCHAR(150),
+    company_fax         VARCHAR(30),
+    
+    -- POC 1 (Primary Point of Contact)
+    poc1_name           VARCHAR(150),
+    poc1_mobile         VARCHAR(30),
+    poc1_email          VARCHAR(150),
+    
+    -- POC 2 (Secondary Point of Contact)
+    poc2_name           VARCHAR(150),
+    poc2_mobile         VARCHAR(30),
+    poc2_email          VARCHAR(150),
+    
+    contact_details     TEXT,
+    
+    -- Address
+    address_line1       TEXT,
+    address_line2       TEXT,
+    city                VARCHAR(100),
+    state               VARCHAR(100),
+    postal_code         VARCHAR(20),
+    
+    -- Compliance & Certifications
+    trade_license_no    VARCHAR(100),
+    trade_license_issue_date DATE,
+    trade_license_expiry_date DATE,
+    vat_trn             VARCHAR(100),
+    vat_cert_no         VARCHAR(100),
+    vat_cert_issue_date DATE,
+    vat_cert_expiry_date DATE,
+    
+    -- Status & Notes
+    is_active           VARCHAR(20) NOT NULL DEFAULT 'ACTIVE'
+                        CHECK (is_active IN ('ACTIVE', 'INACTIVE', 'DELETED')),
+    notes               TEXT,
+    
+    -- Audit
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(tenant_id, org_id, vendor_code)
 );
 
-COMMENT ON TABLE vendors IS 'Vendor master for Direct Purchase GRNs';
+COMMENT ON TABLE vendors IS 'Comprehensive Vendor Master for Direct Purchase GRNs and vendor management';
 
+CREATE INDEX idx_vendors_tenant_org ON vendors(tenant_id, org_id);
+CREATE INDEX idx_vendors_code ON vendors(vendor_code);
+CREATE INDEX idx_vendors_active ON vendors(is_active);
 
 -- ============================================================
 -- 2. GRN HEADER

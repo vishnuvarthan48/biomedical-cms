@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import type { ReactNode } from "react";
 import { cn } from "@/src/lib/utils";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -15,6 +16,7 @@ import {
 } from "@/src/components/ui/select";
 import { Card } from "@/src/components/ui/card";
 import { Checkbox } from "@/src/components/ui/checkbox";
+import { Badge } from "@/src/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -34,17 +36,22 @@ import {
   ChevronDown,
   Search,
   AlertCircle,
+  Hash,
+  ClipboardList,
+  Package,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ROUTES } from "@/src/constants/modules";
 
 interface Asset {
   id: string;
+  assetCode: string;
   serialNo: string;
   deviceName: string;
   deviceModel: string;
   category: string;
   department: string;
+  lastContractEndDate?: string; // last contract end date for this asset
 }
 
 interface UploadedFile {
@@ -55,13 +62,35 @@ interface UploadedFile {
 }
 
 const mockAssets: Asset[] = [
-  { id: "AST-001", serialNo: "MAG-2023-1001", deviceName: "MRI Scanner", deviceModel: "Magnetom Vida", category: "Imaging", department: "Radiology" },
-  { id: "AST-002", serialNo: "REV-2022-3044", deviceName: "CT Scanner", deviceModel: "Revolution EVO", category: "Imaging", department: "Radiology" },
-  { id: "AST-003", serialNo: "SAV-2024-8811", deviceName: "Ventilator", deviceModel: "Savina 300", category: "Life Support", department: "ICU" },
-  { id: "AST-004", serialNo: "EPQ-2023-5522", deviceName: "Ultrasound System", deviceModel: "EPIQ Elite", category: "Imaging", department: "OB/GYN" },
-  { id: "AST-005", serialNo: "INF-2024-7733", deviceName: "Infusion Pump", deviceModel: "Infusomat Space", category: "Infusion", department: "General Ward" },
-  { id: "AST-006", serialNo: "HRT-2023-4456", deviceName: "Defibrillator", deviceModel: "HeartStart MRx", category: "Emergency", department: "Emergency" },
+  { id: "AST-001", assetCode: "BME-MRI-001", serialNo: "MAG-2023-1001", deviceName: "MRI Scanner",       deviceModel: "Magnetom Vida",      category: "Imaging",      department: "Radiology",     lastContractEndDate: "2025-01-14" },
+  { id: "AST-002", assetCode: "BME-CT-002",  serialNo: "REV-2022-3044", deviceName: "CT Scanner",         deviceModel: "Revolution EVO",     category: "Imaging",      department: "Radiology",     lastContractEndDate: "2025-01-14" },
+  { id: "AST-003", assetCode: "BME-VENT-003",serialNo: "SAV-2024-8811", deviceName: "Ventilator",         deviceModel: "Savina 300",         category: "Life Support", department: "ICU",           lastContractEndDate: "2026-02-01" },
+  { id: "AST-004", assetCode: "BME-USG-004", serialNo: "EPQ-2023-5522", deviceName: "Ultrasound System",  deviceModel: "EPIQ Elite",         category: "Imaging",      department: "OB/GYN",        lastContractEndDate: "2024-05-31" },
+  { id: "AST-005", assetCode: "BME-INF-005", serialNo: "INF-2024-7733", deviceName: "Infusion Pump",      deviceModel: "Infusomat Space",    category: "Infusion",     department: "General Ward",  lastContractEndDate: "2026-02-01" },
+  { id: "AST-006", assetCode: "BME-DEF-006", serialNo: "HRT-2023-4456", deviceName: "Defibrillator",      deviceModel: "HeartStart MRx",     category: "Emergency",    department: "Emergency",     lastContractEndDate: "2024-05-31" },
 ];
+
+// PO Number → asset IDs mapping
+const poAssetMap: Record<string, string[]> = {
+  "PO-2024-0011": ["AST-001", "AST-002"],
+  "PO-2024-0022": ["AST-003", "AST-005"],
+  "PO-2024-0033": ["AST-004", "AST-006"],
+  "PO-2023-0044": ["AST-001", "AST-003", "AST-004"],
+};
+
+// Vendor → asset IDs mapping
+const vendorAssetMap: Record<string, string[]> = {
+  ge:      ["AST-001", "AST-002"],
+  siemens: ["AST-003", "AST-005"],
+  philips: ["AST-004", "AST-006"],
+};
+
+// Previous contract ID → asset IDs mapping
+const contractAssetMap: Record<string, string[]> = {
+  "CTR-001": ["AST-001", "AST-002"],
+  "CTR-002": ["AST-003", "AST-005"],
+  "CTR-003": ["AST-004", "AST-006"],
+};
 
 const assetCategories = ["Imaging", "Life Support", "Infusion", "Emergency", "Monitoring", "Laboratory"];
 const documentCategories = [
@@ -79,7 +108,7 @@ function FormField({
 }: {
   label: string;
   required?: boolean;
-  children: React.ReactNode;
+  children: ReactNode;
   className?: string;
   hint?: string;
 }) {
@@ -148,119 +177,408 @@ function AssetPickerModal({
   onClose,
   onSelect,
   selectedAssetIds,
+  currentVendor,
 }: {
   open: boolean;
   onClose: () => void;
   onSelect: (assetIds: string[]) => void;
   selectedAssetIds: string[];
+  currentVendor?: string;
 }) {
+  const [tab, setTab] = useState<"browse" | "lookup" | "upload">("browse");
   const [selected, setSelected] = useState<Set<string>>(new Set(selectedAssetIds));
-  const [search, setSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<string>("");
 
+  // Browse tab
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+
+  // Lookup tab
+  const [lookupPoNumber, setLookupPoNumber] = useState("");
+  const [lookupVendor, setLookupVendor] = useState(currentVendor ?? "none");
+  const [lookupPrevContract, setLookupPrevContract] = useState("none");
+  const [lookupResults, setLookupResults] = useState<Asset[]>([]);
+  const [lookupSource, setLookupSource] = useState<string>("");
+
+  // Upload tab
+  const [uploadText, setUploadText] = useState("");
+  const [uploadResult, setUploadResult] = useState<{ matched: Asset[]; unmatched: string[] } | null>(null);
+
+  // --- Browse helpers ---
   const filteredAssets = mockAssets.filter(
     (a) =>
-      (a.deviceName.toLowerCase().includes(search.toLowerCase()) ||
+      (a.assetCode.toLowerCase().includes(search.toLowerCase()) ||
+        a.deviceName.toLowerCase().includes(search.toLowerCase()) ||
         a.serialNo.toLowerCase().includes(search.toLowerCase())) &&
-      (!categoryFilter || a.category === categoryFilter),
+      (categoryFilter === "all" || a.category === categoryFilter),
   );
 
   const handleSelectAll = () => {
-    if (selected.size === filteredAssets.length) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(filteredAssets.map((a) => a.id)));
-    }
+    if (selected.size === filteredAssets.length) setSelected(new Set());
+    else setSelected(new Set(filteredAssets.map((a) => a.id)));
   };
 
   const handleToggle = (id: string) => {
-    const newSelected = new Set(selected);
-    if (newSelected.has(id)) {
-      newSelected.delete(id);
-    } else {
-      newSelected.add(id);
-    }
-    setSelected(newSelected);
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelected(next);
   };
+
+  // --- Lookup helpers ---
+  const runLookup = (source: "po" | "vendor" | "contract", value: string) => {
+    let ids: string[] = [];
+    let label = "";
+    if (source === "po") {
+      ids = poAssetMap[value.trim().toUpperCase()] ?? poAssetMap[value.trim()] ?? [];
+      label = `PO ${value}`;
+    } else if (source === "vendor") {
+      ids = vendorAssetMap[value] ?? [];
+      label = `Vendor`;
+    } else {
+      ids = contractAssetMap[value] ?? [];
+      label = `Contract ${value}`;
+    }
+    const assets = mockAssets.filter((a) => ids.includes(a.id));
+    setLookupResults(assets);
+    setLookupSource(assets.length ? label : "");
+  };
+
+  const handleAddLookupResults = () => {
+    const next = new Set(selected);
+    lookupResults.forEach((a) => next.add(a.id));
+    setSelected(next);
+  };
+
+  // --- Upload helpers ---
+  const handleUploadMatch = () => {
+    const lines = uploadText.split(/[\n,]/).map((l) => l.trim()).filter(Boolean);
+    const matched: Asset[] = [];
+    const unmatched: string[] = [];
+    lines.forEach((code) => {
+      const found = mockAssets.find(
+        (a) =>
+          a.assetCode.toLowerCase() === code.toLowerCase() ||
+          a.serialNo.toLowerCase() === code.toLowerCase() ||
+          a.id.toLowerCase() === code.toLowerCase(),
+      );
+      if (found) matched.push(found);
+      else unmatched.push(code);
+    });
+    setUploadResult({ matched, unmatched });
+    const next = new Set(selected);
+    matched.forEach((a) => next.add(a.id));
+    setSelected(next);
+  };
+
+  // Shared asset table used by Lookup and Browse result views
+  const AssetResultTable = ({ assets }: { assets: Asset[] }) => (
+    <div className="rounded-lg border border-border overflow-x-auto">
+      <table className="w-full text-xs min-w-[520px]">
+        <thead className="bg-muted/60">
+          <tr>
+            <th className="w-8 px-2 py-2" />
+            <th className="text-left px-2 py-2 font-bold text-[10px] text-muted-foreground uppercase tracking-wide">Asset ID</th>
+            <th className="text-left px-2 py-2 font-bold text-[10px] text-muted-foreground uppercase tracking-wide">Name</th>
+            <th className="text-left px-2 py-2 font-bold text-[10px] text-muted-foreground uppercase tracking-wide">Serial No</th>
+            <th className="text-left px-2 py-2 font-bold text-[10px] text-muted-foreground uppercase tracking-wide">Category</th>
+            <th className="text-left px-2 py-2 font-bold text-[10px] text-muted-foreground uppercase tracking-wide">Dept</th>
+            <th className="text-left px-2 py-2 font-bold text-[10px] text-muted-foreground uppercase tracking-wide">Last Contract End</th>
+          </tr>
+        </thead>
+        <tbody>
+          {assets.length === 0 ? (
+            <tr>
+              <td colSpan={7} className="text-center py-6 text-muted-foreground">No assets found</td>
+            </tr>
+          ) : (
+            assets.map((asset, i) => (
+              <tr
+                key={asset.id}
+                onClick={() => handleToggle(asset.id)}
+                className={cn(
+                  "border-t border-border cursor-pointer transition-colors",
+                  selected.has(asset.id) ? "bg-[#00BCD4]/8" : i % 2 === 0 ? "bg-background hover:bg-muted/40" : "bg-muted/20 hover:bg-muted/40",
+                )}
+              >
+                <td className="px-2 py-2 text-center">
+                  <Checkbox checked={selected.has(asset.id)} onCheckedChange={() => handleToggle(asset.id)} />
+                </td>
+                <td className="px-2 py-2 font-mono font-bold text-[#00BCD4]">{asset.assetCode}</td>
+                <td className="px-2 py-2 font-semibold text-foreground">{asset.deviceName}</td>
+                <td className="px-2 py-2 font-mono text-muted-foreground">{asset.serialNo}</td>
+                <td className="px-2 py-2 text-muted-foreground">{asset.category}</td>
+                <td className="px-2 py-2 text-muted-foreground">{asset.department}</td>
+                <td className="px-2 py-2 font-mono text-muted-foreground">{asset.lastContractEndDate ?? "—"}</td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Select Assets for Contract</DialogTitle>
+          <DialogTitle>Add Assets to Contract</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* Filters */}
-          <div className="flex gap-3">
-            <Input
-              placeholder="Search by device name or serial..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="flex-1"
-            />
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">All Categories</SelectItem>
-                {assetCategories.map((cat) => (
-                  <SelectItem key={cat} value={cat}>
-                    {cat}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Select All */}
-          <div className="flex items-center gap-2 p-2 bg-muted rounded">
-            <Checkbox
-              checked={selected.size === filteredAssets.length && filteredAssets.length > 0}
-              onCheckedChange={handleSelectAll}
-              id="select-all"
-            />
-            <Label htmlFor="select-all" className="text-sm font-semibold cursor-pointer">
-              Select All ({selected.size}/{filteredAssets.length})
-            </Label>
-          </div>
-
-          {/* Asset List */}
-          <div className="max-h-80 overflow-y-auto space-y-2 border border-border rounded p-3">
-            {filteredAssets.length === 0 ? (
-              <div className="text-center py-6 text-muted-foreground">No assets found</div>
-            ) : (
-              filteredAssets.map((asset) => (
-                <div
-                  key={asset.id}
-                  className="flex items-center gap-3 p-2 hover:bg-muted rounded cursor-pointer border border-transparent hover:border-border"
-                  onClick={() => handleToggle(asset.id)}
-                >
-                  <Checkbox checked={selected.has(asset.id)} onCheckedChange={() => handleToggle(asset.id)} />
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-sm text-foreground">{asset.deviceName}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {asset.serialNo} • {asset.category} • {asset.department}
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+        {/* Tabs */}
+        <div className="flex gap-0 border-b border-border shrink-0">
+          {(
+            [
+              { key: "browse", icon: <ClipboardList className="w-3.5 h-3.5" />, label: "Browse Assets" },
+              { key: "lookup", icon: <Package className="w-3.5 h-3.5" />, label: "Lookup by PO / Vendor / Contract" },
+              { key: "upload", icon: <Upload className="w-3.5 h-3.5" />, label: "Upload Codes" },
+            ] as const
+          ).map(({ key, icon, label }) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              className={cn(
+                "flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold border-b-2 -mb-px transition-colors whitespace-nowrap",
+                tab === key
+                  ? "border-[#00BCD4] text-[#00BCD4]"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {icon}
+              {label}
+            </button>
+          ))}
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
+        <div className="overflow-y-auto flex-1 pt-3 space-y-3">
+
+          {/* ── BROWSE TAB ── */}
+          {tab === "browse" && (
+            <>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by Asset ID, name or serial..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-9 h-9"
+                  />
+                </div>
+                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                  <SelectTrigger className="w-36 h-9">
+                    <SelectValue placeholder="Category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    {assetCategories.map((cat) => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 rounded border border-border">
+                <Checkbox
+                  checked={selected.size === filteredAssets.length && filteredAssets.length > 0}
+                  onCheckedChange={handleSelectAll}
+                  id="select-all"
+                />
+                <Label htmlFor="select-all" className="text-xs font-semibold cursor-pointer">
+                  Select All ({selected.size}/{filteredAssets.length})
+                </Label>
+              </div>
+              <AssetResultTable assets={filteredAssets} />
+            </>
+          )}
+
+          {/* ── LOOKUP TAB ── */}
+          {tab === "lookup" && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* PO Number */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold">PO Number</Label>
+                  <div className="flex gap-1.5">
+                    <Input
+                      placeholder="e.g. PO-2024-0011"
+                      value={lookupPoNumber}
+                      onChange={(e) => setLookupPoNumber(e.target.value)}
+                      className="h-9 text-xs"
+                    />
+                    <Button
+                      size="sm"
+                      className="h-9 px-3 shrink-0 text-white border-0"
+                      style={{ background: "linear-gradient(135deg,#00BCD4,#00838F)" }}
+                      disabled={!lookupPoNumber.trim()}
+                      onClick={() => runLookup("po", lookupPoNumber)}
+                    >
+                      <Search className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Vendor */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold">Vendor</Label>
+                  <div className="flex gap-1.5">
+                    <Select value={lookupVendor} onValueChange={setLookupVendor}>
+                      <SelectTrigger className="h-9 text-xs flex-1">
+                        <SelectValue placeholder="Select vendor..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Select vendor...</SelectItem>
+                        <SelectItem value="ge">GE Healthcare</SelectItem>
+                        <SelectItem value="siemens">Siemens Medical</SelectItem>
+                        <SelectItem value="philips">Philips Healthcare</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="sm"
+                      className="h-9 px-3 shrink-0 text-white border-0"
+                      style={{ background: "linear-gradient(135deg,#00BCD4,#00838F)" }}
+                      disabled={!lookupVendor || lookupVendor === "none"}
+                      onClick={() => runLookup("vendor", lookupVendor)}
+                    >
+                      <Search className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Previous Contract */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold">Previous Contract ID</Label>
+                  <div className="flex gap-1.5">
+                    <Select value={lookupPrevContract} onValueChange={setLookupPrevContract}>
+                      <SelectTrigger className="h-9 text-xs flex-1">
+                        <SelectValue placeholder="Select contract..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Select contract...</SelectItem>
+                        <SelectItem value="CTR-001">CTR-001 (GE Healthcare)</SelectItem>
+                        <SelectItem value="CTR-002">CTR-002 (Siemens Medical)</SelectItem>
+                        <SelectItem value="CTR-003">CTR-003 (Philips Healthcare)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="sm"
+                      className="h-9 px-3 shrink-0 text-white border-0"
+                      style={{ background: "linear-gradient(135deg,#00BCD4,#00838F)" }}
+                      disabled={!lookupPrevContract || lookupPrevContract === "none"}
+                      onClick={() => runLookup("contract", lookupPrevContract)}
+                    >
+                      <Search className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Results */}
+              {lookupResults.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-foreground">
+                      {lookupResults.length} asset{lookupResults.length !== 1 ? "s" : ""} found
+                      {lookupSource && <span className="font-normal text-muted-foreground"> · {lookupSource}</span>}
+                    </span>
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs font-bold text-white border-0 px-3"
+                      style={{ background: "linear-gradient(135deg,#F59E0B,#D97706)" }}
+                      onClick={handleAddLookupResults}
+                    >
+                      Select All {lookupResults.length} Assets
+                    </Button>
+                  </div>
+                  <AssetResultTable assets={lookupResults} />
+                </div>
+              )}
+
+              {lookupResults.length === 0 && lookupSource === "" && (
+                <div className="text-center py-10 text-muted-foreground text-sm border border-dashed border-border rounded-lg">
+                  Enter a PO Number, select a Vendor, or select a Previous Contract and click the search button to load assets.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── UPLOAD TAB ── */}
+          {tab === "upload" && (
+            <div className="space-y-4">
+              <div className="bg-muted/40 border border-border rounded-lg p-3 text-xs text-muted-foreground">
+                Paste or type Asset Codes or Serial Numbers separated by commas or new lines. The system will match them against the Asset Register.
+              </div>
+              <div>
+                <Label className="text-xs font-semibold mb-1.5 block">Asset Codes / Serial Numbers</Label>
+                <Textarea
+                  rows={5}
+                  placeholder={"BME-MRI-001\nBME-CT-002, BME-VENT-003\nMAG-2023-1001"}
+                  value={uploadText}
+                  onChange={(e) => { setUploadText(e.target.value); setUploadResult(null); }}
+                  className="font-mono text-sm resize-none"
+                />
+              </div>
+              <Button
+                onClick={handleUploadMatch}
+                disabled={!uploadText.trim()}
+                className="w-full h-9 text-sm font-semibold text-white border-0"
+                style={{ background: "linear-gradient(135deg,#00BCD4,#00838F)" }}
+              >
+                <Hash className="w-4 h-4 mr-2" />
+                Match Assets
+              </Button>
+
+              {uploadResult && (
+                <div className="space-y-3">
+                  {uploadResult.matched.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <div className="w-2 h-2 rounded-full bg-[#10B981]" />
+                        <span className="text-xs font-bold text-[#10B981]">{uploadResult.matched.length} Matched & Added to Selection</span>
+                      </div>
+                      <div className="space-y-1">
+                        {uploadResult.matched.map((a) => (
+                          <div key={a.id} className="flex items-center gap-2 px-3 py-2 bg-[#10B981]/5 border border-[#10B981]/20 rounded text-xs">
+                            <span className="font-mono font-bold text-[#00BCD4]">{a.assetCode}</span>
+                            <span className="text-foreground font-semibold">{a.deviceName}</span>
+                            <span className="text-muted-foreground">{a.serialNo}</span>
+                            <span className="text-muted-foreground ml-auto">{a.lastContractEndDate ?? "—"}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {uploadResult.unmatched.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <div className="w-2 h-2 rounded-full bg-[#EF4444]" />
+                        <span className="text-xs font-bold text-[#EF4444]">{uploadResult.unmatched.length} Not Found</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {uploadResult.unmatched.map((code) => (
+                          <span key={code} className="px-2 py-0.5 bg-[#EF4444]/10 border border-[#EF4444]/20 rounded text-xs font-mono text-[#EF4444]">
+                            {code}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="border-t border-border pt-3 shrink-0">
+          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
           <Button
+            size="sm"
+            style={{ background: "linear-gradient(135deg,#00BCD4,#00838F)" }}
+            className="text-white font-semibold"
             onClick={() => {
               onSelect(Array.from(selected));
               onClose();
             }}
           >
-            Add {selected.size} Asset{selected.size !== 1 ? "s" : ""}
+            Add {selected.size} Asset{selected.size !== 1 ? "s" : ""} to Contract
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -509,10 +827,11 @@ export function ContractCreatePage() {
 
               <Button
                 onClick={() => setAssetModalOpen(true)}
-                className="w-full mb-3 bg-blue-600 hover:bg-blue-700"
+                className="w-full mb-3 text-white font-semibold text-sm h-9 border-0"
+                style={{ background: "linear-gradient(135deg,#00BCD4,#00838F)" }}
               >
                 <ChevronDown className="w-4 h-4 mr-2" />
-                Select Assets
+                Select / Upload Assets
               </Button>
 
               {selectedAssets.length === 0 ? (
@@ -521,18 +840,31 @@ export function ContractCreatePage() {
                   <div className="text-xs text-amber-700">Select at least one asset for this contract</div>
                 </div>
               ) : (
-                <div className="space-y-2 max-h-96 overflow-y-auto">
+              <div className="space-y-2 max-h-96 overflow-y-auto">
                   {selectedAssets.map((asset) => (
-                    <div key={asset.id} className="border border-border rounded p-2 bg-blue-50">
-                      <div className="flex items-start justify-between">
+                    <div key={asset.id} className="border border-[#00BCD4]/20 rounded-lg p-2.5 bg-[#00BCD4]/5">
+                      <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-xs text-foreground truncate">{asset.deviceName}</div>
-                          <div className="text-xs text-muted-foreground">{asset.serialNo}</div>
-                          <div className="text-xs text-muted-foreground">{asset.category}</div>
+                          <div className="font-bold text-xs text-foreground truncate mb-1">{asset.deviceName}</div>
+                          <div className="flex items-center gap-1 mb-0.5">
+                            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">ID</span>
+                            <span className="font-mono text-[11px] font-bold text-[#00BCD4]">{asset.assetCode}</span>
+                          </div>
+                          <div className="flex items-center gap-1 mb-0.5">
+                            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">S/N</span>
+                            <span className="font-mono text-[11px] text-muted-foreground">{asset.serialNo}</span>
+                          </div>
+                          <div className="text-[10px] text-muted-foreground">{asset.category} · {asset.department}</div>
+                          {asset.lastContractEndDate && (
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Last End</span>
+                              <span className="font-mono text-[10px] text-[#F59E0B] font-semibold">{asset.lastContractEndDate}</span>
+                            </div>
+                          )}
                         </div>
                         <button
                           onClick={() => handleRemoveAsset(asset.id)}
-                          className="ml-2 text-red-600 hover:text-red-700 flex-shrink-0"
+                          className="text-muted-foreground hover:text-red-500 transition-colors flex-shrink-0 mt-0.5"
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
@@ -571,6 +903,7 @@ export function ContractCreatePage() {
         onClose={() => setAssetModalOpen(false)}
         onSelect={handleAssetSelect}
         selectedAssetIds={selectedAssets.map((a) => a.id)}
+        currentVendor={vendor || undefined}
       />
     </div>
   );

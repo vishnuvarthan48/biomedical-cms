@@ -1306,8 +1306,8 @@ function RuleBuilder({
     rule?.assignment.strategy ?? "FIXED"
   );
   const [notifyAssignee, setNotifyAssignee] = useState(rule?.assignment.notifyAssignee ?? true);
-  const [overrideSla, setOverrideSla] = useState(rule?.assignment.overrideSla ?? "");
-  const [overridePriority, setOverridePriority] = useState(rule?.assignment.overridePriority ?? "");
+  const [overrideSla, setOverrideSla] = useState(rule?.assignment.overrideSla ?? "none");
+  const [overridePriority, setOverridePriority] = useState(rule?.assignment.overridePriority ?? "none");
 
   const assignOptions =
     assignToType === "TEAM"
@@ -1366,8 +1366,8 @@ function RuleBuilder({
         strategy,
         notifyAssignee,
         notifyChannels: notifyAssignee ? ["EMAIL", "PUSH"] : [],
-        overrideSla: overrideSla || undefined,
-        overridePriority: overridePriority || undefined,
+              overrideSla: overrideSla !== "none" ? overrideSla : undefined,
+              overridePriority: overridePriority !== "none" ? overridePriority : undefined,
       },
       isActive: active,
       effectiveFrom: effectiveFrom || undefined,
@@ -1708,7 +1708,7 @@ function RuleBuilder({
                   <SelectValue placeholder="No override" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No override</SelectItem>
+                  <SelectItem value="none">No override</SelectItem>
                   <SelectItem value="1 hour">1 Hour</SelectItem>
                   <SelectItem value="2 hours">2 Hours</SelectItem>
                   <SelectItem value="4 hours">4 Hours</SelectItem>
@@ -1726,7 +1726,7 @@ function RuleBuilder({
                   <SelectValue placeholder="No override" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No override</SelectItem>
+                  <SelectItem value="none">No override</SelectItem>
                   <SelectItem value="Critical">Critical</SelectItem>
                   <SelectItem value="High">High</SelectItem>
                   <SelectItem value="Medium">Medium</SelectItem>
@@ -1802,8 +1802,8 @@ function RuleBuilder({
                     </span>
                   </span>
                 )}
-                {overrideSla && (
-                  <span className="text-[#EF4444] font-semibold"> | SLA: {overrideSla}</span>
+            {overrideSla && overrideSla !== "none" && (
+              <span className="text-[#EF4444] font-semibold"> | SLA: {overrideSla}</span>
                 )}
               </p>
             </div>

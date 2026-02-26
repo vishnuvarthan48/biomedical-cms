@@ -988,7 +988,7 @@ function ItemForm({
       </div>
 
       {/* Store Configuration Modal */}
-      {storeConfigModalOpen &&
+      {storeConfigModalOpen ? (
         createPortal(
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
             <Card className="w-full max-w-2xl border border-border shadow-xl">
@@ -1113,7 +1113,8 @@ function ItemForm({
             </Card>
           </div>,
           document.body,
-        )}
+        )
+      ) : null}
     </div>
   );
 }

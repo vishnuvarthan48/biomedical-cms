@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { cn } from "@/src/lib/utils";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -1843,6 +1843,17 @@ function InstallationTab() {
 // Tab 8: Maintenance
 function MaintenanceScheduleRow({ label, id }: { label: string; id: string }) {
   const [enabled, setEnabled] = useState(false);
+  const [startDate, setStartDate] = useState("");
+  const [frequencyMonths, setFrequencyMonths] = useState<number | "">("");
+
+  // Auto-calculate next due date from start date + frequency in months
+  const nextDueDate = useMemo(() => {
+    if (!startDate || !frequencyMonths) return "";
+    const date = new Date(startDate);
+    date.setMonth(date.getMonth() + Number(frequencyMonths));
+    return date.toISOString().split("T")[0];
+  }, [startDate, frequencyMonths]);
+
   return (
     <Card
       className={cn(
@@ -1861,28 +1872,37 @@ function MaintenanceScheduleRow({ label, id }: { label: string; id: string }) {
         {enabled && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pl-7">
             <FormField label="Start Date">
-              <Input type="date" className="h-10" />
+              <Input
+                type="date"
+                className="h-10"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
             </FormField>
-            <FormField label="Frequency">
-              <Select>
-                <SelectTrigger className="h-10">
-                  <SelectValue placeholder="Select" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="MONTHLY">Monthly</SelectItem>
-                  <SelectItem value="BI_MONTHLY">2 Months</SelectItem>
-                  <SelectItem value="QUARTERLY">3 Months</SelectItem>
-                  <SelectItem value="SEMI_ANNUAL">6 Months</SelectItem>
-                  <SelectItem value="ANNUAL">Yearly</SelectItem>
-                  <SelectItem value="CUSTOM">Custom</SelectItem>
-                </SelectContent>
-              </Select>
+            <FormField label="Frequency (Months)">
+              <div className="relative flex items-center">
+                <Input
+                  type="number"
+                  min={1}
+                  max={120}
+                  className="h-10 pr-14"
+                  placeholder="e.g. 6"
+                  value={frequencyMonths}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setFrequencyMonths(val === "" ? "" : Math.max(1, parseInt(val) || 1));
+                  }}
+                />
+                <span className="absolute right-3 text-xs font-semibold text-muted-foreground pointer-events-none">
+                  nos
+                </span>
+              </div>
             </FormField>
             <FormField label="Next Due Date">
               <Input
                 type="date"
                 className="h-10 bg-muted/30"
-                placeholder="Auto-calculated"
+                value={nextDueDate}
                 readOnly
               />
             </FormField>
