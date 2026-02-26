@@ -24,6 +24,8 @@ import { ticketMobileRoute } from "../routes/ticket-mobile.route";
 import { voucherSeriesRoute } from "../routes/voucher-series.route";
 import { locationsRoute } from "../routes/locations.route";
 import { notificationSettingsRoute } from "../routes/notification-settings.route";
+import { ticketAllocationRulesRoute } from "../routes/ticket-allocation-rules.route";
+import { contractManagementRoute } from "../routes/contract-management.route";
 
 function RoleAwareRedirect() {
   const { userRole } = useAuth();
@@ -64,6 +66,8 @@ export const router = createBrowserRouter([
       voucherSeriesRoute,
       locationsRoute,
       notificationSettingsRoute,
+      ticketAllocationRulesRoute,
+      contractManagementRoute,
       { path: "*", element: <Navigate to={ROUTES.DASHBOARD} replace /> },
     ],
   },

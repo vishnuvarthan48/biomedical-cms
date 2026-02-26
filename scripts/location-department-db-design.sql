@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS room_type (
     name          VARCHAR(100) NOT NULL,
     description   VARCHAR(300),
     sort_order    INT NOT NULL DEFAULT 0,
-    is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+    is_active     VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' CHECK (is_active IN ('ACTIVE','INACTIVE','DELETED')),
 
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS location_level (
     code          VARCHAR(20)  NOT NULL,       -- BUILDING, FLOOR, ROOM, BED
     name          VARCHAR(60)  NOT NULL,
     sort_order    INT NOT NULL DEFAULT 0,
-    is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+    is_active     VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' CHECK (is_active IN ('ACTIVE','INACTIVE','DELETED')),
 
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -98,7 +98,7 @@ CREATE TABLE IF NOT EXISTS building (
     building_name VARCHAR(150) NOT NULL,
     building_code VARCHAR(50),
     description   VARCHAR(500),
-    is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+    is_active     VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' CHECK (is_active IN ('ACTIVE','INACTIVE','DELETED')),
 
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -120,7 +120,7 @@ CREATE TABLE IF NOT EXISTS floor (
     floor_no      INT NOT NULL,                  -- -1=Basement, 0=Ground, 1,2...
     floor_name    VARCHAR(100),                  -- e.g. "Basement", "Ground Floor"
     description   VARCHAR(300),
-    is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+    is_active     VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' CHECK (is_active IN ('ACTIVE','INACTIVE','DELETED')),
 
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -144,7 +144,7 @@ CREATE TABLE IF NOT EXISTS room (
     room_name     VARCHAR(100),                  -- e.g. "Medical ICU"
     room_type_id  BIGINT REFERENCES room_type(id),
     description   VARCHAR(300),
-    is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+    is_active     VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' CHECK (is_active IN ('ACTIVE','INACTIVE','DELETED')),
 
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -167,7 +167,7 @@ CREATE TABLE IF NOT EXISTS bed (
     room_id       BIGINT NOT NULL REFERENCES room(room_id) ON DELETE CASCADE,
     bed_no        VARCHAR(50) NOT NULL,          -- e.g. "1", "2", "A"
     bed_code      VARCHAR(80),                   -- optional global code e.g. "ER-B1"
-    is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+    is_active     VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' CHECK (is_active IN ('ACTIVE','INACTIVE','DELETED')),
 
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -193,7 +193,7 @@ CREATE TABLE IF NOT EXISTS department (
     dept_name     VARCHAR(150) NOT NULL,
     dept_code     VARCHAR(60),
     description   VARCHAR(500),
-    is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+    is_active     VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' CHECK (is_active IN ('ACTIVE','INACTIVE','DELETED')),
 
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -251,7 +251,7 @@ SELECT
     COUNT(DISTINCT fl.floor_id)  AS floor_count,
     COUNT(DISTINCT r.room_id)    AS room_count,
     COUNT(DISTINCT bd.bed_id)    AS bed_count,
-    COUNT(DISTINCT bd.bed_id) FILTER (WHERE bd.is_active) AS active_bed_count
+    COUNT(DISTINCT bd.bed_id) FILTER (WHERE bd.is_active = 'ACTIVE') AS active_bed_count
 FROM building b
 LEFT JOIN floor fl ON fl.building_id = b.building_id
 LEFT JOIN room  r  ON r.floor_id = fl.floor_id
@@ -327,7 +327,7 @@ SELECT
     b.org_id,
     COUNT(DISTINCT r.room_id)  AS room_count,
     COUNT(DISTINCT bd.bed_id)  AS bed_count,
-    COUNT(DISTINCT bd.bed_id) FILTER (WHERE bd.is_active) AS active_bed_count,
+    COUNT(DISTINCT bd.bed_id) FILTER (WHERE bd.is_active = 'ACTIVE') AS active_bed_count,
     STRING_AGG(DISTINCT rt.name, ', ' ORDER BY rt.name)   AS room_types
 FROM floor fl
 JOIN building b    ON b.building_id = fl.building_id
@@ -355,7 +355,7 @@ SELECT
     b.building_name,
     b.org_id,
     COUNT(DISTINCT bd.bed_id)  AS bed_count,
-    COUNT(DISTINCT bd.bed_id) FILTER (WHERE bd.is_active) AS active_bed_count
+    COUNT(DISTINCT bd.bed_id) FILTER (WHERE bd.is_active = 'ACTIVE') AS active_bed_count
 FROM room r
 JOIN floor fl      ON fl.floor_id = r.floor_id
 JOIN building b    ON b.building_id = fl.building_id
@@ -376,13 +376,13 @@ SELECT
     COUNT(DISTINCT fl.floor_id)    AS floor_count,
     COUNT(DISTINCT r.room_id)      AS room_count,
     COUNT(DISTINCT bd.bed_id)      AS bed_count,
-    COUNT(DISTINCT bd.bed_id) FILTER (WHERE bd.is_active) AS active_bed_count,
+    COUNT(DISTINCT bd.bed_id) FILTER (WHERE bd.is_active = 'ACTIVE') AS active_bed_count,
     COUNT(DISTINCT d.dept_id)      AS department_count
 FROM building b
 LEFT JOIN floor fl     ON fl.building_id = b.building_id
 LEFT JOIN room r       ON r.floor_id = fl.floor_id
 LEFT JOIN bed bd       ON bd.room_id = r.room_id
-LEFT JOIN department d ON d.org_id = b.org_id AND d.tenant_id = b.tenant_id AND d.is_active = TRUE
+LEFT JOIN department d ON d.org_id = b.org_id AND d.tenant_id = b.tenant_id AND d.is_active = 'ACTIVE'
 GROUP BY b.tenant_id, b.org_id;
 
 

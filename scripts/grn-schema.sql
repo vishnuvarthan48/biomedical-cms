@@ -67,11 +67,6 @@ CREATE TABLE IF NOT EXISTS item_master (
     compatible_devices  TEXT[],              -- Array of compatible device names
     stock_uom           VARCHAR(50) NOT NULL DEFAULT 'Piece',
     purchase_uom        VARCHAR(50),
-    rack_number         VARCHAR(50),
-    shelf_number        VARCHAR(50),
-    reorder_level       INT NOT NULL DEFAULT 0,
-    min_order_qty       INT NOT NULL DEFAULT 1,
-    reorder_time_days   INT DEFAULT 14,
     shelf_life_months   INT NOT NULL DEFAULT 60,   -- Default from Store Master (60 months)
     batch_required      BOOLEAN NOT NULL DEFAULT FALSE,
     expiry_required     BOOLEAN NOT NULL DEFAULT FALSE,

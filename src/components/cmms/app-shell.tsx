@@ -30,6 +30,8 @@ import {
   Smartphone,
   Hash,
   MapPin,
+  GitBranch,
+  FileText,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/src/components/ui/avatar";
 import { OrgSwitcher } from "@/src/components/cmms/org-switcher";
@@ -191,6 +193,22 @@ const navItems: NavItem[] = [
     section: "Administration",
     path: ROUTES.NOTIFICATION_SETTINGS,
     roles: ["tenant-admin", "org-admin", "platform-admin"],
+  },
+  {
+    id: MODULES.TICKET_ALLOCATION_RULES,
+    label: "Ticket Allocation Rules",
+    icon: GitBranch,
+    section: "Administration",
+    path: ROUTES.TICKET_ALLOCATION_RULES,
+    roles: ["tenant-admin", "org-admin", "platform-admin"],
+  },
+  {
+    id: MODULES.CONTRACT_MANAGEMENT,
+    label: "Contract Management",
+    icon: FileText,
+    section: "Asset Management",
+    path: ROUTES.CONTRACT_MANAGEMENT,
+    roles: allRolesExceptEndUser,
   },
   {
     id: MODULES.VOUCHER_SERIES,

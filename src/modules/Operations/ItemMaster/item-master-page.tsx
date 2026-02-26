@@ -46,6 +46,8 @@ import {
   ChevronUp,
   AlertTriangle,
   Cpu,
+  Warehouse,
+  Settings,
 } from "lucide-react";
 
 // ----- Types & Data (shared from item-master-data) -----
@@ -65,6 +67,46 @@ const deviceOptions = [
   "MRI Scanner",
   "CT Scanner",
 ];
+
+// Mock stores for multi-store hospitals
+const mockStores = [
+  { id: "S001", name: "Central Biomedical Store", isDefault: true },
+  { id: "S002", name: "ICU Store", isDefault: false },
+  { id: "S003", name: "OT Store", isDefault: false },
+  { id: "S004", name: "Emergency Store", isDefault: false },
+];
+
+// Mock store inventory configs
+interface StoreInventoryConfig {
+  storeId: string;
+  rackNumber: string;
+  shelfNumber: string;
+  binLocation: string;
+  reorderLevel: number;
+  minOrderQty: number;
+  reorderTimeDays: number;
+}
+
+const mockStoreConfigs: Record<string, StoreInventoryConfig> = {
+  S001: {
+    storeId: "S001",
+    rackNumber: "R-001",
+    shelfNumber: "S-01",
+    binLocation: "BIN-001",
+    reorderLevel: 50,
+    minOrderQty: 10,
+    reorderTimeDays: 14,
+  },
+  S002: {
+    storeId: "S002",
+    rackNumber: "R-002",
+    shelfNumber: "S-02",
+    binLocation: "BIN-002",
+    reorderLevel: 20,
+    minOrderQty: 5,
+    reorderTimeDays: 7,
+  },
+};
 
 // ----- Helpers -----
 function FormField({
@@ -423,8 +465,10 @@ function ItemForm({
 }) {
   const isEdit = !!editItem;
   const [basicOpen, setBasicOpen] = useState(true);
-  const [storageOpen, setStorageOpen] = useState(true);
   const [trackingOpen, setTrackingOpen] = useState(true);
+  const [storeConfigOpen, setStoreConfigOpen] = useState(true);
+  const [storeConfigModalOpen, setStoreConfigModalOpen] = useState(false);
+  const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
 
   // Form state
   const [hospital, setHospital] = useState(editItem?.hospital || "");
@@ -445,17 +489,21 @@ function ItemForm({
   );
   const [stockUom, setStockUom] = useState(editItem?.stockUom || "");
   const [purchaseUom, setPurchaseUom] = useState(editItem?.purchaseUom || "");
-  const [rack, setRack] = useState(editItem?.rackNumber || "");
-  const [shelf, setShelf] = useState(editItem?.shelfNumber || "");
-  const [reorderLevel, setReorderLevel] = useState(
-    editItem ? String(editItem.reorderLevel) : "",
-  );
-  const [moq, setMoq] = useState(editItem ? String(editItem.minOrderQty) : "");
-  const [rot, setRot] = useState(editItem?.reorderTime || "");
   const [batchReq, setBatchReq] = useState(editItem?.batchRequired || false);
   const [expiryReq, setExpiryReq] = useState(editItem?.expiryRequired || false);
   const [serialReq, setSerialReq] = useState(editItem?.serialTracking || false);
   const [status, setStatus] = useState(editItem?.status || "Active");
+
+  // Store inventory configs
+  const [storeConfigs, setStoreConfigs] = useState<Record<string, StoreInventoryConfig>>(mockStoreConfigs);
+
+  // Store config form state
+  const [configRackNum, setConfigRackNum] = useState("");
+  const [configShelfNum, setConfigShelfNum] = useState("");
+  const [configBinLoc, setConfigBinLoc] = useState("");
+  const [configReorderLvl, setConfigReorderLvl] = useState(0);
+  const [configMinQty, setConfigMinQty] = useState(1);
+  const [configReorderDays, setConfigReorderDays] = useState(14);
 
   const [devicesOpen, setDevicesOpen] = useState(false);
 
@@ -463,6 +511,39 @@ function ItemForm({
     setDevices((prev) =>
       prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d],
     );
+  };
+
+  const handleStoreConfigEdit = (storeId: string) => {
+    const config = storeConfigs[storeId];
+    if (config) {
+      setSelectedStoreId(storeId);
+      setConfigRackNum(config.rackNumber);
+      setConfigShelfNum(config.shelfNumber);
+      setConfigBinLoc(config.binLocation);
+      setConfigReorderLvl(config.reorderLevel);
+      setConfigMinQty(config.minOrderQty);
+      setConfigReorderDays(config.reorderTimeDays);
+      setStoreConfigModalOpen(true);
+    }
+  };
+
+  const handleStoreConfigSave = () => {
+    if (selectedStoreId) {
+      setStoreConfigs((prev) => ({
+        ...prev,
+        [selectedStoreId]: {
+          storeId: selectedStoreId,
+          rackNumber: configRackNum,
+          shelfNumber: configShelfNum,
+          binLocation: configBinLoc,
+          reorderLevel: configReorderLvl,
+          minOrderQty: configMinQty,
+          reorderTimeDays: configReorderDays,
+        },
+      }));
+      setStoreConfigModalOpen(false);
+      setSelectedStoreId(null);
+    }
   };
 
   return (
@@ -708,74 +789,112 @@ function ItemForm({
         )}
       </Card>
 
-      {/* Section B: Storage & Reorder */}
+      {/* Store-wise Configuration Section */}
       <Card className="border border-border shadow-sm">
         <button
-          onClick={() => setStorageOpen(!storageOpen)}
+          onClick={() => setStoreConfigOpen(!storeConfigOpen)}
           className="w-full flex items-center justify-between p-6 text-left"
         >
-          <h3 className="text-base font-extrabold text-foreground">
-            Storage Location & Reorder Planning
-          </h3>
-          {storageOpen ? (
+          <div className="flex items-center gap-3">
+            <Warehouse className="w-5 h-5 text-[#F59E0B]" />
+            <h3 className="text-base font-extrabold text-foreground">
+              Storage Location & Inventory Policies
+            </h3>
+          </div>
+          {storeConfigOpen ? (
             <ChevronUp className="w-5 h-5 text-muted-foreground" />
           ) : (
             <ChevronDown className="w-5 h-5 text-muted-foreground" />
           )}
         </button>
-        {storageOpen && (
+
+        {storeConfigOpen && (
           <CardContent className="px-6 pb-6 pt-0">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-              <FormField label="Rack Number">
-                <Input
-                  className="h-10"
-                  placeholder="e.g. R-01"
-                  value={rack}
-                  onChange={(e) => setRack(e.target.value)}
-                />
-              </FormField>
-              <FormField label="Shelf Number">
-                <Input
-                  className="h-10"
-                  placeholder="e.g. S-03"
-                  value={shelf}
-                  onChange={(e) => setShelf(e.target.value)}
-                />
-              </FormField>
-              <FormField label="Reorder Level (ROL)">
-                <Input
-                  type="number"
-                  className="h-10"
-                  placeholder="e.g. 5"
-                  min="0"
-                  value={reorderLevel}
-                  onChange={(e) => setReorderLevel(e.target.value)}
-                />
-              </FormField>
-              <FormField label="Min Order Qty (MOQ)">
-                <Input
-                  type="number"
-                  className="h-10"
-                  placeholder="e.g. 2"
-                  min="1"
-                  value={moq}
-                  onChange={(e) => setMoq(e.target.value)}
-                />
-              </FormField>
-              <FormField label="Reorder Time (ROT)">
-                <Input
-                  className="h-10"
-                  placeholder="e.g. 14 days"
-                  value={rot}
-                  onChange={(e) => setRot(e.target.value)}
-                />
-              </FormField>
+            <p className="text-sm text-muted-foreground mb-4">
+              Configure storage location and reorder policies for each store. In multi-store hospitals, different policies can be set per location.
+            </p>
+
+            {/* Store Configuration Table */}
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <Table className="text-sm">
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead className="font-bold">Store Name</TableHead>
+                    <TableHead className="font-bold">Rack #</TableHead>
+                    <TableHead className="font-bold">Shelf #</TableHead>
+                    <TableHead className="font-bold">Bin Location</TableHead>
+                    <TableHead className="font-bold text-right">Reorder Level</TableHead>
+                    <TableHead className="font-bold text-right">Min Qty</TableHead>
+                    <TableHead className="font-bold text-right">Lead Time (Days)</TableHead>
+                    <TableHead className="font-bold text-center">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {mockStores.map((store) => {
+                    const config = storeConfigs[store.id];
+                    const configured = !!config;
+                    return (
+                      <TableRow
+                        key={store.id}
+                        className={!configured ? "bg-muted/30 opacity-60" : ""}
+                      >
+                        <TableCell className="font-semibold">
+                          <div className="flex items-center gap-2">
+                            {store.name}
+                            {store.isDefault && (
+                              <Badge className="text-[9px] font-bold bg-[#10B981]/10 text-[#10B981] border-0 px-1.5">
+                                Default
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className={configured ? "text-foreground font-medium" : "text-muted-foreground"}>
+                          {config?.rackNumber || "—"}
+                        </TableCell>
+                        <TableCell className={configured ? "text-foreground font-medium" : "text-muted-foreground"}>
+                          {config?.shelfNumber || "—"}
+                        </TableCell>
+                        <TableCell className={configured ? "text-foreground font-medium" : "text-muted-foreground"}>
+                          {config?.binLocation || "—"}
+                        </TableCell>
+                        <TableCell className="text-right font-mono font-bold text-[#00BCD4]">
+                          {config?.reorderLevel || "—"}
+                        </TableCell>
+                        <TableCell className="text-right font-mono font-bold text-[#8B5CF6]">
+                          {config?.minOrderQty || "—"}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-foreground">
+                          {config?.reorderTimeDays || "—"}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 hover:bg-[#00BCD4]/10 hover:text-[#00BCD4]"
+                            onClick={() => handleStoreConfigEdit(store.id)}
+                          >
+                            {configured ? (
+                              <Pencil className="w-4 h-4" />
+                            ) : (
+                              <Plus className="w-4 h-4" />
+                            )}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             </div>
+
+            <p className="text-xs text-muted-foreground mt-3">
+              Click the icon to configure storage location and reorder planning for each store.
+            </p>
           </CardContent>
         )}
       </Card>
 
-      {/* Section C: Traceability Controls */}
+      {/* Section B: Traceability Controls */}
       <Card className="border border-border shadow-sm">
         <button
           onClick={() => setTrackingOpen(!trackingOpen)}
@@ -867,6 +986,134 @@ function ItemForm({
           {isEdit ? "Update Item" : "Save Item"}
         </Button>
       </div>
+
+      {/* Store Configuration Modal */}
+      {storeConfigModalOpen &&
+        createPortal(
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <Card className="w-full max-w-2xl border border-border shadow-xl">
+              <div className="flex items-center justify-between p-6 border-b border-border">
+                <div className="flex items-center gap-3">
+                  <Warehouse className="w-5 h-5 text-[#F59E0B]" />
+                  <h3 className="text-lg font-extrabold text-foreground">
+                    {mockStores.find((s) => s.id === selectedStoreId)?.name}
+                  </h3>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => setStoreConfigModalOpen(false)}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+
+              <CardContent className="p-6 space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Define storage location and reorder policies for this item at{" "}
+                  <span className="font-semibold text-foreground">
+                    {mockStores.find((s) => s.id === selectedStoreId)?.name}
+                  </span>
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField label="Rack Number" required>
+                    <Input
+                      className="h-10"
+                      placeholder="e.g. R-001"
+                      value={configRackNum}
+                      onChange={(e) => setConfigRackNum(e.target.value)}
+                    />
+                  </FormField>
+
+                  <FormField label="Shelf Number" required>
+                    <Input
+                      className="h-10"
+                      placeholder="e.g. S-01"
+                      value={configShelfNum}
+                      onChange={(e) => setConfigShelfNum(e.target.value)}
+                    />
+                  </FormField>
+
+                  <FormField label="Bin Location">
+                    <Input
+                      className="h-10"
+                      placeholder="e.g. BIN-001"
+                      value={configBinLoc}
+                      onChange={(e) => setConfigBinLoc(e.target.value)}
+                    />
+                  </FormField>
+                </div>
+
+                <div className="border-t border-border pt-4 mt-4">
+                  <h4 className="text-sm font-bold text-foreground mb-4">
+                    Reorder Planning
+                  </h4>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <FormField label="Reorder Level" required>
+                      <Input
+                        className="h-10"
+                        type="number"
+                        min="0"
+                        placeholder="Qty to trigger reorder"
+                        value={configReorderLvl}
+                        onChange={(e) =>
+                          setConfigReorderLvl(parseInt(e.target.value) || 0)
+                        }
+                      />
+                    </FormField>
+
+                    <FormField label="Minimum Order Qty" required>
+                      <Input
+                        className="h-10"
+                        type="number"
+                        min="1"
+                        placeholder="Min qty to order"
+                        value={configMinQty}
+                        onChange={(e) =>
+                          setConfigMinQty(parseInt(e.target.value) || 1)
+                        }
+                      />
+                    </FormField>
+
+                    <FormField label="Lead Time (Days)" required>
+                      <Input
+                        className="h-10"
+                        type="number"
+                        min="1"
+                        placeholder="Reorder lead time"
+                        value={configReorderDays}
+                        onChange={(e) =>
+                          setConfigReorderDays(parseInt(e.target.value) || 14)
+                        }
+                      />
+                    </FormField>
+                  </div>
+                </div>
+              </CardContent>
+
+              <div className="flex items-center justify-end gap-3 p-6 border-t border-border bg-muted/30">
+                <Button
+                  variant="outline"
+                  className="text-sm font-semibold h-9 px-4"
+                  onClick={() => setStoreConfigModalOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="text-white border-0 text-sm font-semibold h-9 px-5"
+                  style={{ background: "linear-gradient(135deg, #00BCD4, #00838F)" }}
+                  onClick={handleStoreConfigSave}
+                >
+                  <Save className="w-4 h-4 mr-1.5" /> Save Configuration
+                </Button>
+              </div>
+            </Card>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

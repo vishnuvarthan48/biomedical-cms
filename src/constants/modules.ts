@@ -19,6 +19,8 @@ export const MODULES = {
   VOUCHER_SERIES: "voucher-series",
   LOCATIONS: "locations",
   NOTIFICATION_SETTINGS: "notification-settings",
+  TICKET_ALLOCATION_RULES: "ticket-allocation-rules",
+  CONTRACT_MANAGEMENT: "contract-management",
 } as const;
 
 export const ROUTES = {
@@ -45,4 +47,8 @@ export const ROUTES = {
   VOUCHER_SERIES: `/${MODULES.VOUCHER_SERIES}`,
   LOCATIONS: `/${MODULES.LOCATIONS}`,
   NOTIFICATION_SETTINGS: `/${MODULES.NOTIFICATION_SETTINGS}`,
+  TICKET_ALLOCATION_RULES: `/${MODULES.TICKET_ALLOCATION_RULES}`,
+  CONTRACT_MANAGEMENT: `/${MODULES.CONTRACT_MANAGEMENT}`,
+  CONTRACT_CREATE: `/${MODULES.CONTRACT_MANAGEMENT}/create`,
+  CONTRACT_EDIT: (id: string) => `/${MODULES.CONTRACT_MANAGEMENT}/edit/${id}`,
 } as const;

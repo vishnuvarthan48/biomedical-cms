@@ -45,13 +45,15 @@ import {
 
 
 /* ------------------------------------------------------------------ */
-/*  Types (aligned with new DB schema)                                 */
+/*  Types (aligned with new DB schema - soft delete via isActive enum) */
 /* ------------------------------------------------------------------ */
+type RecordStatus = "ACTIVE" | "INACTIVE" | "DELETED";
+
 interface Bed {
   id: string;
   bedNo: string;
   bedCode: string;
-  isActive: boolean;
+  isActive: RecordStatus;
 }
 
 interface Room {
@@ -60,7 +62,7 @@ interface Room {
   roomName: string;
   roomTypeId: string;
   roomTypeName: string;
-  isActive: boolean;
+  isActive: RecordStatus;
   beds: Bed[];
 }
 
@@ -68,7 +70,7 @@ interface Floor {
   id: string;
   floorNo: number;         // -1=Basement, 0=Ground, 1,2,...
   floorName: string;
-  isActive: boolean;
+  isActive: RecordStatus;
   rooms: Room[];
 }
 
@@ -78,7 +80,7 @@ interface Building {
   buildingName: string;
   buildingCode: string;
   description: string;
-  isActive: boolean;
+  isActive: RecordStatus;
   floors: Floor[];
 }
 
@@ -91,7 +93,7 @@ interface Organization {
   state: string;
   pinCode: string;
   email: string;
-  isActive: boolean;
+  isActive: RecordStatus;
   buildings: Building[];
 }
 
@@ -101,9 +103,18 @@ interface Department {
   deptName: string;
   deptCode: string;
   description: string;
-  isActive: boolean;
+  isActive: RecordStatus;
   mappings: DeptLocationMap[];
 }
+
+/* ------------------------------------------------------------------ */
+/*  Status display helper                                              */
+/* ------------------------------------------------------------------ */
+const statusConfig: Record<RecordStatus, { label: string; color: string; bg: string }> = {
+  ACTIVE:   { label: "Active",   color: "#10B981", bg: "rgba(16,185,129,0.1)" },
+  INACTIVE: { label: "Inactive", color: "#F59E0B", bg: "rgba(245,158,11,0.1)" },
+  DELETED:  { label: "Deleted",  color: "#EF4444", bg: "rgba(239,68,68,0.1)" },
+};
 
 interface DeptLocationMap {
   id: string;
@@ -149,84 +160,84 @@ const initialOrganizations: Organization[] = [
     state: "Tamil Nadu",
     pinCode: "600006",
     email: "admin@apollochennai.com",
-    isActive: true,
+    isActive: "ACTIVE",
     buildings: [
       {
         id: "BLD-001", orgId: "ORG-001", buildingName: "Main Tower", buildingCode: "MT",
-        description: "Primary 8-floor main tower", isActive: true,
+        description: "Primary 8-floor main tower", isActive: "ACTIVE",
         floors: [
-          { id: "FL-001", floorNo: -1, floorName: "Basement", isActive: true, rooms: [
-            { id: "RM-017", roomNo: "CSSD-B01", roomName: "CSSD", roomTypeId: "RT-15", roomTypeName: "CSSD", isActive: true, beds: [] },
+          { id: "FL-001", floorNo: -1, floorName: "Basement", isActive: "ACTIVE", rooms: [
+            { id: "RM-017", roomNo: "CSSD-B01", roomName: "CSSD", roomTypeId: "RT-15", roomTypeName: "CSSD", isActive: "ACTIVE", beds: [] },
           ]},
-          { id: "FL-002", floorNo: 0, floorName: "Ground Floor", isActive: true, rooms: [
-            { id: "RM-001", roomNo: "ER-001", roomName: "Emergency", roomTypeId: "RT-09", roomTypeName: "Emergency Room", isActive: true,
-              beds: Array.from({ length: 8 }, (_, i) => ({ id: `BD-001-${i + 1}`, bedNo: `${i + 1}`, bedCode: `ER-B${i + 1}`, isActive: true })),
+          { id: "FL-002", floorNo: 0, floorName: "Ground Floor", isActive: "ACTIVE", rooms: [
+            { id: "RM-001", roomNo: "ER-001", roomName: "Emergency", roomTypeId: "RT-09", roomTypeName: "Emergency Room", isActive: "ACTIVE",
+              beds: Array.from({ length: 8 }, (_, i) => ({ id: `BD-001-${i + 1}`, bedNo: `${i + 1}`, bedCode: `ER-B${i + 1}`, isActive: "ACTIVE" })),
             },
-            { id: "RM-002", roomNo: "OPD-002", roomName: "OPD", roomTypeId: "RT-10", roomTypeName: "Out-Patient Department", isActive: true, beds: [] },
-            { id: "RM-018", roomNo: "RAD-003", roomName: "Radiology", roomTypeId: "RT-12", roomTypeName: "Radiology", isActive: true, beds: [] },
+            { id: "RM-002", roomNo: "OPD-002", roomName: "OPD", roomTypeId: "RT-10", roomTypeName: "Out-Patient Department", isActive: "ACTIVE", beds: [] },
+            { id: "RM-018", roomNo: "RAD-003", roomName: "Radiology", roomTypeId: "RT-12", roomTypeName: "Radiology", isActive: "ACTIVE", beds: [] },
           ]},
-          { id: "FL-003", floorNo: 1, floorName: "1st Floor", isActive: true, rooms: [
-            { id: "RM-003", roomNo: "WA-101", roomName: "Ward A", roomTypeId: "RT-07", roomTypeName: "General Ward", isActive: true,
-              beds: Array.from({ length: 20 }, (_, i) => ({ id: `BD-003-${i + 1}`, bedNo: `${i + 1}`, bedCode: `WA-B${i + 1}`, isActive: true })),
+          { id: "FL-003", floorNo: 1, floorName: "1st Floor", isActive: "ACTIVE", rooms: [
+            { id: "RM-003", roomNo: "WA-101", roomName: "Ward A", roomTypeId: "RT-07", roomTypeName: "General Ward", isActive: "ACTIVE",
+              beds: Array.from({ length: 20 }, (_, i) => ({ id: `BD-003-${i + 1}`, bedNo: `${i + 1}`, bedCode: `WA-B${i + 1}`, isActive: "ACTIVE" })),
             },
-            { id: "RM-004", roomNo: "WB-102", roomName: "Ward B", roomTypeId: "RT-07", roomTypeName: "General Ward", isActive: true,
-              beds: Array.from({ length: 20 }, (_, i) => ({ id: `BD-004-${i + 1}`, bedNo: `${i + 1}`, bedCode: `WB-B${i + 1}`, isActive: true })),
+            { id: "RM-004", roomNo: "WB-102", roomName: "Ward B", roomTypeId: "RT-07", roomTypeName: "General Ward", isActive: "ACTIVE",
+              beds: Array.from({ length: 20 }, (_, i) => ({ id: `BD-004-${i + 1}`, bedNo: `${i + 1}`, bedCode: `WB-B${i + 1}`, isActive: "ACTIVE" })),
             },
-            { id: "RM-019", roomNo: "LAB-103", roomName: "Laboratory", roomTypeId: "RT-11", roomTypeName: "Laboratory", isActive: true, beds: [] },
+            { id: "RM-019", roomNo: "LAB-103", roomName: "Laboratory", roomTypeId: "RT-11", roomTypeName: "Laboratory", isActive: "ACTIVE", beds: [] },
           ]},
-          { id: "FL-004", floorNo: 2, floorName: "2nd Floor", isActive: true, rooms: [
-            { id: "RM-005", roomNo: "WC-201", roomName: "Ward C", roomTypeId: "RT-07", roomTypeName: "General Ward", isActive: true,
-              beds: Array.from({ length: 18 }, (_, i) => ({ id: `BD-005-${i + 1}`, bedNo: `${i + 1}`, bedCode: `WC-B${i + 1}`, isActive: true })),
+          { id: "FL-004", floorNo: 2, floorName: "2nd Floor", isActive: "ACTIVE", rooms: [
+            { id: "RM-005", roomNo: "WC-201", roomName: "Ward C", roomTypeId: "RT-07", roomTypeName: "General Ward", isActive: "ACTIVE",
+              beds: Array.from({ length: 18 }, (_, i) => ({ id: `BD-005-${i + 1}`, bedNo: `${i + 1}`, bedCode: `WC-B${i + 1}`, isActive: "ACTIVE" })),
             },
-            { id: "RM-006", roomNo: "WD-202", roomName: "Ward D", roomTypeId: "RT-07", roomTypeName: "General Ward", isActive: true,
-              beds: Array.from({ length: 18 }, (_, i) => ({ id: `BD-006-${i + 1}`, bedNo: `${i + 1}`, bedCode: `WD-B${i + 1}`, isActive: true })),
-            },
-          ]},
-          { id: "FL-005", floorNo: 3, floorName: "3rd Floor", isActive: true, rooms: [
-            { id: "RM-007", roomNo: "MICU-301", roomName: "MICU", roomTypeId: "RT-02", roomTypeName: "Medical ICU", isActive: true,
-              beds: Array.from({ length: 12 }, (_, i) => ({ id: `BD-007-${i + 1}`, bedNo: `${i + 1}`, bedCode: `MICU-B${i + 1}`, isActive: true })),
-            },
-            { id: "RM-008", roomNo: "NICU-302", roomName: "NICU", roomTypeId: "RT-03", roomTypeName: "Neonatal ICU", isActive: true,
-              beds: Array.from({ length: 8 }, (_, i) => ({ id: `BD-008-${i + 1}`, bedNo: `${i + 1}`, bedCode: `NICU-B${i + 1}`, isActive: true })),
-            },
-            { id: "RM-009", roomNo: "CICU-303", roomName: "CICU", roomTypeId: "RT-04", roomTypeName: "Cardiac ICU", isActive: true,
-              beds: Array.from({ length: 6 }, (_, i) => ({ id: `BD-009-${i + 1}`, bedNo: `${i + 1}`, bedCode: `CICU-B${i + 1}`, isActive: true })),
+            { id: "RM-006", roomNo: "WD-202", roomName: "Ward D", roomTypeId: "RT-07", roomTypeName: "General Ward", isActive: "ACTIVE",
+              beds: Array.from({ length: 18 }, (_, i) => ({ id: `BD-006-${i + 1}`, bedNo: `${i + 1}`, bedCode: `WD-B${i + 1}`, isActive: "ACTIVE" })),
             },
           ]},
-          { id: "FL-006", floorNo: 4, floorName: "4th Floor", isActive: true, rooms: [
-            { id: "RM-010", roomNo: "CCU-401", roomName: "CCU", roomTypeId: "RT-05", roomTypeName: "Coronary Care Unit", isActive: true,
-              beds: Array.from({ length: 6 }, (_, i) => ({ id: `BD-010-${i + 1}`, bedNo: `${i + 1}`, bedCode: `CCU-B${i + 1}`, isActive: true })),
+          { id: "FL-005", floorNo: 3, floorName: "3rd Floor", isActive: "ACTIVE", rooms: [
+            { id: "RM-007", roomNo: "MICU-301", roomName: "MICU", roomTypeId: "RT-02", roomTypeName: "Medical ICU", isActive: "ACTIVE",
+              beds: Array.from({ length: 12 }, (_, i) => ({ id: `BD-007-${i + 1}`, bedNo: `${i + 1}`, bedCode: `MICU-B${i + 1}`, isActive: "ACTIVE" })),
+            },
+            { id: "RM-008", roomNo: "NICU-302", roomName: "NICU", roomTypeId: "RT-03", roomTypeName: "Neonatal ICU", isActive: "ACTIVE",
+              beds: Array.from({ length: 8 }, (_, i) => ({ id: `BD-008-${i + 1}`, bedNo: `${i + 1}`, bedCode: `NICU-B${i + 1}`, isActive: "ACTIVE" })),
+            },
+            { id: "RM-009", roomNo: "CICU-303", roomName: "CICU", roomTypeId: "RT-04", roomTypeName: "Cardiac ICU", isActive: "ACTIVE",
+              beds: Array.from({ length: 6 }, (_, i) => ({ id: `BD-009-${i + 1}`, bedNo: `${i + 1}`, bedCode: `CICU-B${i + 1}`, isActive: "ACTIVE" })),
             },
           ]},
-          { id: "FL-007", floorNo: 5, floorName: "5th Floor", isActive: true, rooms: [
-            { id: "RM-011", roomNo: "OT-501", roomName: "General Surgery OT", roomTypeId: "RT-06", roomTypeName: "Operation Theatre", isActive: true, beds: [] },
-            { id: "RM-012", roomNo: "OT-502", roomName: "Cardiac Surgery OT", roomTypeId: "RT-06", roomTypeName: "Operation Theatre", isActive: true, beds: [] },
-            { id: "RM-013", roomNo: "OT-503", roomName: "Neuro Surgery OT", roomTypeId: "RT-06", roomTypeName: "Operation Theatre", isActive: true, beds: [] },
-            { id: "RM-014", roomNo: "OT-504", roomName: "Uro Surgery OT", roomTypeId: "RT-06", roomTypeName: "Operation Theatre", isActive: true, beds: [] },
+          { id: "FL-006", floorNo: 4, floorName: "4th Floor", isActive: "INACTIVE", rooms: [
+            { id: "RM-010", roomNo: "CCU-401", roomName: "CCU", roomTypeId: "RT-05", roomTypeName: "Coronary Care Unit", isActive: "INACTIVE",
+              beds: Array.from({ length: 6 }, (_, i) => ({ id: `BD-010-${i + 1}`, bedNo: `${i + 1}`, bedCode: `CCU-B${i + 1}`, isActive: "ACTIVE" })),
+            },
           ]},
-          { id: "FL-008", floorNo: 6, floorName: "6th Floor", isActive: true, rooms: [
-            { id: "RM-015", roomNo: "OT-601", roomName: "Ortho Surgery OT", roomTypeId: "RT-06", roomTypeName: "Operation Theatre", isActive: true, beds: [] },
-            { id: "RM-016", roomNo: "OT-602", roomName: "Gyne Surgery OT", roomTypeId: "RT-06", roomTypeName: "Operation Theatre", isActive: true, beds: [] },
+          { id: "FL-007", floorNo: 5, floorName: "5th Floor", isActive: "ACTIVE", rooms: [
+            { id: "RM-011", roomNo: "OT-501", roomName: "General Surgery OT", roomTypeId: "RT-06", roomTypeName: "Operation Theatre", isActive: "ACTIVE", beds: [] },
+            { id: "RM-012", roomNo: "OT-502", roomName: "Cardiac Surgery OT", roomTypeId: "RT-06", roomTypeName: "Operation Theatre", isActive: "ACTIVE", beds: [] },
+            { id: "RM-013", roomNo: "OT-503", roomName: "Neuro Surgery OT", roomTypeId: "RT-06", roomTypeName: "Operation Theatre", isActive: "ACTIVE", beds: [] },
+            { id: "RM-014", roomNo: "OT-504", roomName: "Uro Surgery OT", roomTypeId: "RT-06", roomTypeName: "Operation Theatre", isActive: "ACTIVE", beds: [] },
+          ]},
+          { id: "FL-008", floorNo: 6, floorName: "6th Floor", isActive: "ACTIVE", rooms: [
+            { id: "RM-015", roomNo: "OT-601", roomName: "Ortho Surgery OT", roomTypeId: "RT-06", roomTypeName: "Operation Theatre", isActive: "ACTIVE", beds: [] },
+            { id: "RM-016", roomNo: "OT-602", roomName: "Gyne Surgery OT", roomTypeId: "RT-06", roomTypeName: "Operation Theatre", isActive: "ACTIVE", beds: [] },
           ]},
         ],
       },
       {
         id: "BLD-002", orgId: "ORG-001", buildingName: "Diagnostic Block", buildingCode: "DX",
-        description: "Radiology, Pathology, Blood Bank, Dialysis", isActive: true,
+        description: "Radiology, Pathology, Blood Bank, Dialysis", isActive: "ACTIVE",
         floors: [
-          { id: "FL-020", floorNo: 0, floorName: "Ground Floor", isActive: true, rooms: [
-            { id: "RM-030", roomNo: "RD-001", roomName: "Radiology & Imaging", roomTypeId: "RT-12", roomTypeName: "Radiology", isActive: true, beds: [] },
+          { id: "FL-020", floorNo: 0, floorName: "Ground Floor", isActive: "ACTIVE", rooms: [
+            { id: "RM-030", roomNo: "RD-001", roomName: "Radiology & Imaging", roomTypeId: "RT-12", roomTypeName: "Radiology", isActive: "ACTIVE", beds: [] },
           ]},
-          { id: "FL-021", floorNo: 1, floorName: "1st Floor", isActive: true, rooms: [
-            { id: "RM-031", roomNo: "LAB-101", roomName: "Pathology Lab", roomTypeId: "RT-11", roomTypeName: "Laboratory", isActive: true, beds: [] },
-            { id: "RM-032", roomNo: "LAB-102", roomName: "Microbiology Lab", roomTypeId: "RT-11", roomTypeName: "Laboratory", isActive: true, beds: [] },
+          { id: "FL-021", floorNo: 1, floorName: "1st Floor", isActive: "ACTIVE", rooms: [
+            { id: "RM-031", roomNo: "LAB-101", roomName: "Pathology Lab", roomTypeId: "RT-11", roomTypeName: "Laboratory", isActive: "ACTIVE", beds: [] },
+            { id: "RM-032", roomNo: "LAB-102", roomName: "Microbiology Lab", roomTypeId: "RT-11", roomTypeName: "Laboratory", isActive: "ACTIVE", beds: [] },
           ]},
-          { id: "FL-022", floorNo: 2, floorName: "2nd Floor", isActive: true, rooms: [
-            { id: "RM-033", roomNo: "BB-201", roomName: "Blood Bank", roomTypeId: "RT-17", roomTypeName: "Blood Bank", isActive: true, beds: [] },
+          { id: "FL-022", floorNo: 2, floorName: "2nd Floor", isActive: "ACTIVE", rooms: [
+            { id: "RM-033", roomNo: "BB-201", roomName: "Blood Bank", roomTypeId: "RT-17", roomTypeName: "Blood Bank", isActive: "ACTIVE", beds: [] },
           ]},
-          { id: "FL-023", floorNo: 3, floorName: "3rd Floor", isActive: true, rooms: [
-            { id: "RM-034", roomNo: "DU-301", roomName: "Dialysis Unit", roomTypeId: "RT-16", roomTypeName: "Dialysis Unit", isActive: true,
-              beds: Array.from({ length: 10 }, (_, i) => ({ id: `BD-034-${i + 1}`, bedNo: `${i + 1}`, bedCode: `DU-B${i + 1}`, isActive: true })),
+          { id: "FL-023", floorNo: 3, floorName: "3rd Floor", isActive: "ACTIVE", rooms: [
+            { id: "RM-034", roomNo: "DU-301", roomName: "Dialysis Unit", roomTypeId: "RT-16", roomTypeName: "Dialysis Unit", isActive: "ACTIVE",
+              beds: Array.from({ length: 10 }, (_, i) => ({ id: `BD-034-${i + 1}`, bedNo: `${i + 1}`, bedCode: `DU-B${i + 1}`, isActive: "ACTIVE" })),
             },
           ]},
         ],
@@ -242,42 +253,42 @@ const initialOrganizations: Organization[] = [
     state: "Tamil Nadu",
     pinCode: "600096",
     email: "admin@apolloomr.com",
-    isActive: true,
+    isActive: "ACTIVE",
     buildings: [
       {
         id: "BLD-010", orgId: "ORG-002", buildingName: "Block A - Main Hospital", buildingCode: "BA",
-        description: "10-floor main hospital block", isActive: true,
+        description: "10-floor main hospital block", isActive: "ACTIVE",
         floors: [
-          { id: "FL-050", floorNo: -1, floorName: "Basement", isActive: true, rooms: [
-            { id: "RM-060", roomNo: "CSSD-B01", roomName: "CSSD", roomTypeId: "RT-15", roomTypeName: "CSSD", isActive: true, beds: [] },
+          { id: "FL-050", floorNo: -1, floorName: "Basement", isActive: "ACTIVE", rooms: [
+            { id: "RM-060", roomNo: "CSSD-B01", roomName: "CSSD", roomTypeId: "RT-15", roomTypeName: "CSSD", isActive: "ACTIVE", beds: [] },
           ]},
-          { id: "FL-051", floorNo: 0, floorName: "Ground Floor", isActive: true, rooms: [
-            { id: "RM-050", roomNo: "ER-G01", roomName: "Emergency", roomTypeId: "RT-09", roomTypeName: "Emergency Room", isActive: true,
-              beds: Array.from({ length: 6 }, (_, i) => ({ id: `BD-050-${i + 1}`, bedNo: `${i + 1}`, bedCode: `ER-B${i + 1}`, isActive: true })),
+          { id: "FL-051", floorNo: 0, floorName: "Ground Floor", isActive: "ACTIVE", rooms: [
+            { id: "RM-050", roomNo: "ER-G01", roomName: "Emergency", roomTypeId: "RT-09", roomTypeName: "Emergency Room", isActive: "ACTIVE",
+              beds: Array.from({ length: 6 }, (_, i) => ({ id: `BD-050-${i + 1}`, bedNo: `${i + 1}`, bedCode: `ER-B${i + 1}`, isActive: "ACTIVE" })),
             },
-            { id: "RM-051", roomNo: "OPD-G02", roomName: "General OPD", roomTypeId: "RT-10", roomTypeName: "Out-Patient Department", isActive: true, beds: [] },
-            { id: "RM-061", roomNo: "PH-G03", roomName: "Pharmacy", roomTypeId: "RT-13", roomTypeName: "Pharmacy", isActive: true, beds: [] },
+            { id: "RM-051", roomNo: "OPD-G02", roomName: "General OPD", roomTypeId: "RT-10", roomTypeName: "Out-Patient Department", isActive: "ACTIVE", beds: [] },
+            { id: "RM-061", roomNo: "PH-G03", roomName: "Pharmacy", roomTypeId: "RT-13", roomTypeName: "Pharmacy", isActive: "ACTIVE", beds: [] },
           ]},
-          { id: "FL-052", floorNo: 1, floorName: "1st Floor", isActive: true, rooms: [
-            { id: "RM-052", roomNo: "C-101", roomName: "Cardiology OPD", roomTypeId: "RT-10", roomTypeName: "Out-Patient Department", isActive: true, beds: [] },
-            { id: "RM-053", roomNo: "RAD-101", roomName: "Radiology", roomTypeId: "RT-12", roomTypeName: "Radiology", isActive: true, beds: [] },
+          { id: "FL-052", floorNo: 1, floorName: "1st Floor", isActive: "ACTIVE", rooms: [
+            { id: "RM-052", roomNo: "C-101", roomName: "Cardiology OPD", roomTypeId: "RT-10", roomTypeName: "Out-Patient Department", isActive: "ACTIVE", beds: [] },
+            { id: "RM-053", roomNo: "RAD-101", roomName: "Radiology", roomTypeId: "RT-12", roomTypeName: "Radiology", isActive: "ACTIVE", beds: [] },
           ]},
-          { id: "FL-053", floorNo: 2, floorName: "2nd Floor", isActive: true, rooms: [
-            { id: "RM-054", roomNo: "ICU-201", roomName: "ICU", roomTypeId: "RT-01", roomTypeName: "Intensive Care Unit", isActive: true,
-              beds: Array.from({ length: 10 }, (_, i) => ({ id: `BD-054-${i + 1}`, bedNo: `${i + 1}`, bedCode: `ICU-B${i + 1}`, isActive: true })),
-            },
-          ]},
-          { id: "FL-054", floorNo: 3, floorName: "3rd Floor", isActive: true, rooms: [
-            { id: "RM-055", roomNo: "OT-301", roomName: "OT Complex", roomTypeId: "RT-06", roomTypeName: "Operation Theatre", isActive: true, beds: [] },
-          ]},
-          { id: "FL-055", floorNo: 4, floorName: "4th Floor", isActive: true, rooms: [
-            { id: "RM-056", roomNo: "C-401", roomName: "Cardiology", roomTypeId: "RT-01", roomTypeName: "Intensive Care Unit", isActive: true,
-              beds: Array.from({ length: 16 }, (_, i) => ({ id: `BD-056-${i + 1}`, bedNo: `${i + 1}`, bedCode: `CARD-B${i + 1}`, isActive: true })),
+          { id: "FL-053", floorNo: 2, floorName: "2nd Floor", isActive: "ACTIVE", rooms: [
+            { id: "RM-054", roomNo: "ICU-201", roomName: "ICU", roomTypeId: "RT-01", roomTypeName: "Intensive Care Unit", isActive: "ACTIVE",
+              beds: Array.from({ length: 10 }, (_, i) => ({ id: `BD-054-${i + 1}`, bedNo: `${i + 1}`, bedCode: `ICU-B${i + 1}`, isActive: "ACTIVE" })),
             },
           ]},
-          { id: "FL-056", floorNo: 5, floorName: "5th Floor", isActive: true, rooms: [
-            { id: "RM-057", roomNo: "N-501", roomName: "Neurology", roomTypeId: "RT-07", roomTypeName: "General Ward", isActive: true,
-              beds: Array.from({ length: 12 }, (_, i) => ({ id: `BD-057-${i + 1}`, bedNo: `${i + 1}`, bedCode: `NEURO-B${i + 1}`, isActive: true })),
+          { id: "FL-054", floorNo: 3, floorName: "3rd Floor", isActive: "ACTIVE", rooms: [
+            { id: "RM-055", roomNo: "OT-301", roomName: "OT Complex", roomTypeId: "RT-06", roomTypeName: "Operation Theatre", isActive: "ACTIVE", beds: [] },
+          ]},
+          { id: "FL-055", floorNo: 4, floorName: "4th Floor", isActive: "ACTIVE", rooms: [
+            { id: "RM-056", roomNo: "C-401", roomName: "Cardiology", roomTypeId: "RT-01", roomTypeName: "Intensive Care Unit", isActive: "ACTIVE",
+              beds: Array.from({ length: 16 }, (_, i) => ({ id: `BD-056-${i + 1}`, bedNo: `${i + 1}`, bedCode: `CARD-B${i + 1}`, isActive: "ACTIVE" })),
+            },
+          ]},
+          { id: "FL-056", floorNo: 5, floorName: "5th Floor", isActive: "ACTIVE", rooms: [
+            { id: "RM-057", roomNo: "N-501", roomName: "Neurology", roomTypeId: "RT-07", roomTypeName: "General Ward", isActive: "ACTIVE",
+              beds: Array.from({ length: 12 }, (_, i) => ({ id: `BD-057-${i + 1}`, bedNo: `${i + 1}`, bedCode: `NEURO-B${i + 1}`, isActive: "ACTIVE" })),
             },
           ]},
         ],
@@ -287,7 +298,7 @@ const initialOrganizations: Organization[] = [
 ];
 
 const initialDepartments: Department[] = [
-  { id: "DEPT-001", orgId: "ORG-001", deptName: "Emergency Medicine", deptCode: "EM", description: "Emergency department", isActive: true,
+  { id: "DEPT-001", orgId: "ORG-001", deptName: "Emergency Medicine", deptCode: "EM", description: "Emergency department", isActive: "ACTIVE",
     mappings: [
       { id: "DLM-001", level: "ROOM", locationId: "RM-001", isPrimary: true },
       { id: "DLM-001a", level: "BED", locationId: "BD-001-1", isPrimary: false },
@@ -296,7 +307,7 @@ const initialDepartments: Department[] = [
       { id: "DLM-001d", level: "BED", locationId: "BD-001-5", isPrimary: false },
     ],
   },
-  { id: "DEPT-002", orgId: "ORG-001", deptName: "General Surgery", deptCode: "GS", description: "General surgery department", isActive: true,
+  { id: "DEPT-002", orgId: "ORG-001", deptName: "General Surgery", deptCode: "GS", description: "General surgery department", isActive: "ACTIVE",
     mappings: [
       { id: "DLM-002", level: "ROOM", locationId: "RM-011", isPrimary: true },
       { id: "DLM-003", level: "ROOM", locationId: "RM-012", isPrimary: false },
@@ -305,13 +316,13 @@ const initialDepartments: Department[] = [
       { id: "DLM-003c", level: "BED", locationId: "BD-003-10", isPrimary: false },
     ],
   },
-  { id: "DEPT-003", orgId: "ORG-001", deptName: "Radiology", deptCode: "RAD", description: "Imaging & diagnostics", isActive: true,
+  { id: "DEPT-003", orgId: "ORG-001", deptName: "Radiology", deptCode: "RAD", description: "Imaging & diagnostics", isActive: "ACTIVE",
     mappings: [
       { id: "DLM-004", level: "ROOM", locationId: "RM-018", isPrimary: true },
       { id: "DLM-005", level: "ROOM", locationId: "RM-030", isPrimary: false },
     ],
   },
-  { id: "DEPT-004", orgId: "ORG-001", deptName: "Critical Care", deptCode: "CC", description: "ICU, MICU, NICU, CICU, CCU", isActive: true,
+  { id: "DEPT-004", orgId: "ORG-001", deptName: "Critical Care", deptCode: "CC", description: "ICU, MICU, NICU, CICU, CCU", isActive: "ACTIVE",
     mappings: [
       { id: "DLM-006", level: "FLOOR", locationId: "FL-005", isPrimary: true },
       { id: "DLM-007", level: "ROOM", locationId: "RM-010", isPrimary: false },
@@ -325,10 +336,10 @@ const initialDepartments: Department[] = [
       { id: "DLM-007h", level: "BED", locationId: "BD-010-3", isPrimary: false },
     ],
   },
-  { id: "DEPT-005", orgId: "ORG-001", deptName: "CSSD", deptCode: "CSSD", description: "Central Sterile Supply", isActive: true,
+  { id: "DEPT-005", orgId: "ORG-001", deptName: "CSSD", deptCode: "CSSD", description: "Central Sterile Supply", isActive: "ACTIVE",
     mappings: [{ id: "DLM-008", level: "ROOM", locationId: "RM-017", isPrimary: true }],
   },
-  { id: "DEPT-006", orgId: "ORG-001", deptName: "Dialysis Unit", deptCode: "DU", description: "Renal dialysis services", isActive: true,
+  { id: "DEPT-006", orgId: "ORG-001", deptName: "Dialysis Unit", deptCode: "DU", description: "Renal dialysis services", isActive: "ACTIVE",
     mappings: [
       { id: "DLM-020", level: "ROOM", locationId: "RM-034", isPrimary: true },
       { id: "DLM-020a", level: "BED", locationId: "BD-034-1", isPrimary: false },
@@ -338,7 +349,7 @@ const initialDepartments: Department[] = [
       { id: "DLM-020e", level: "BED", locationId: "BD-034-10", isPrimary: false },
     ],
   },
-  { id: "DEPT-007", orgId: "ORG-001", deptName: "General Medicine", deptCode: "GM", description: "General medicine wards", isActive: true,
+  { id: "DEPT-007", orgId: "ORG-001", deptName: "General Medicine", deptCode: "GM", description: "General medicine wards", isActive: "ACTIVE",
     mappings: [
       { id: "DLM-030", level: "ROOM", locationId: "RM-003", isPrimary: true },
       { id: "DLM-030a", level: "BED", locationId: "BD-003-2", isPrimary: false },
@@ -349,7 +360,7 @@ const initialDepartments: Department[] = [
       { id: "DLM-031b", level: "BED", locationId: "BD-004-12", isPrimary: false },
     ],
   },
-  { id: "DEPT-010", orgId: "ORG-002", deptName: "Emergency Medicine", deptCode: "EM", description: "OMR emergency department", isActive: true,
+  { id: "DEPT-010", orgId: "ORG-002", deptName: "Emergency Medicine", deptCode: "EM", description: "OMR emergency department", isActive: "ACTIVE",
     mappings: [
       { id: "DLM-010", level: "ROOM", locationId: "RM-050", isPrimary: true },
       { id: "DLM-010a", level: "BED", locationId: "BD-050-1", isPrimary: false },
@@ -357,7 +368,7 @@ const initialDepartments: Department[] = [
       { id: "DLM-010c", level: "BED", locationId: "BD-050-5", isPrimary: false },
     ],
   },
-  { id: "DEPT-011", orgId: "ORG-002", deptName: "Cardiology", deptCode: "CARD", description: "Cardiology department", isActive: true,
+  { id: "DEPT-011", orgId: "ORG-002", deptName: "Cardiology", deptCode: "CARD", description: "Cardiology department", isActive: "ACTIVE",
     mappings: [
       { id: "DLM-011", level: "ROOM", locationId: "RM-052", isPrimary: false },
       { id: "DLM-012", level: "ROOM", locationId: "RM-056", isPrimary: true },
@@ -367,7 +378,7 @@ const initialDepartments: Department[] = [
       { id: "DLM-012d", level: "BED", locationId: "BD-056-12", isPrimary: false },
     ],
   },
-  { id: "DEPT-012", orgId: "ORG-002", deptName: "Neurology", deptCode: "NEURO", description: "Neurology ward", isActive: true,
+  { id: "DEPT-012", orgId: "ORG-002", deptName: "Neurology", deptCode: "NEURO", description: "Neurology ward", isActive: "ACTIVE",
     mappings: [
       { id: "DLM-040", level: "ROOM", locationId: "RM-057", isPrimary: true },
       { id: "DLM-040a", level: "BED", locationId: "BD-057-1", isPrimary: false },
@@ -439,29 +450,29 @@ export function LocationMasterPage() {
   const [bName, setBName] = useState("");
   const [bCode, setBCode] = useState("");
   const [bDesc, setBDesc] = useState("");
-  const [bActive, setBActive] = useState(true);
+  const [bActive, setBActive] = useState<RecordStatus>("ACTIVE");
 
   // Floor form
   const [fNo, setFNo] = useState("");
   const [fName, setFName] = useState("");
-  const [fActive, setFActive] = useState(true);
+  const [fActive, setFActive] = useState<RecordStatus>("ACTIVE");
 
   // Room form
   const [rNo, setRNo] = useState("");
   const [rName, setRName] = useState("");
   const [rType, setRType] = useState("");
-  const [rActive, setRActive] = useState(true);
+  const [rActive, setRActive] = useState<RecordStatus>("ACTIVE");
 
   // Bed form
   const [bedNo, setBedNo] = useState("");
   const [bedCode, setBedCode] = useState("");
-  const [bedActive, setBedActive] = useState(true);
+  const [bedActive, setBedActive] = useState<RecordStatus>("ACTIVE");
 
   // Department form
   const [dName, setDName] = useState("");
   const [dCode, setDCode] = useState("");
   const [dDesc, setDDesc] = useState("");
-  const [dActive, setDActive] = useState(true);
+  const [dActive, setDActive] = useState<RecordStatus>("ACTIVE");
 
   // Inline mapping rows for department form
   const [deptInlineMappings, setDeptInlineMappings] = useState<DeptLocationMap[]>([]);
@@ -491,25 +502,28 @@ export function LocationMasterPage() {
   const stats = useMemo(() => {
     if (!selectedOrg) return { buildings: 0, floors: 0, rooms: 0, beds: 0, depts: 0 };
     let floors = 0, rooms = 0, beds = 0;
-    selectedOrg.buildings.forEach((b) => {
-      floors += b.floors.length;
-      b.floors.forEach((f) => {
-        rooms += f.rooms.length;
-        f.rooms.forEach((r) => { beds += r.beds.length; });
+    const visibleBuildings = selectedOrg.buildings.filter((b) => b.isActive !== "DELETED");
+    visibleBuildings.forEach((b) => {
+      const vFloors = b.floors.filter((f) => f.isActive !== "DELETED");
+      floors += vFloors.length;
+      vFloors.forEach((f) => {
+        const vRooms = f.rooms.filter((r) => r.isActive !== "DELETED");
+        rooms += vRooms.length;
+        vRooms.forEach((r) => { beds += r.beds.filter((bd) => bd.isActive !== "DELETED").length; });
       });
     });
-    const depts = departments.filter((d) => d.orgId === selectedOrgId).length;
-    return { buildings: selectedOrg.buildings.length, floors, rooms, beds, depts };
+    const depts = departments.filter((d) => d.orgId === selectedOrgId && d.isActive !== "DELETED").length;
+    return { buildings: visibleBuildings.length, floors, rooms, beds, depts };
   }, [selectedOrg, departments, selectedOrgId]);
 
   // --- Reset modals ---
   const resetModal = () => {
     setModal(null); setFormError("");
-    setBName(""); setBCode(""); setBDesc(""); setBActive(true);
-    setFNo(""); setFName(""); setFActive(true);
-    setRNo(""); setRName(""); setRType(""); setRActive(true);
-    setBedNo(""); setBedCode(""); setBedActive(true);
-    setDName(""); setDCode(""); setDDesc(""); setDActive(true);
+    setBName(""); setBCode(""); setBDesc(""); setBActive("ACTIVE");
+    setFNo(""); setFName(""); setFActive("ACTIVE");
+    setRNo(""); setRName(""); setRType(""); setRActive("ACTIVE");
+    setBedNo(""); setBedCode(""); setBedActive("ACTIVE");
+    setDName(""); setDCode(""); setDDesc(""); setDActive("ACTIVE");
     setDeptInlineMappings([]); setInlineMapLevel("ROOM"); setInlineMapBldId(""); setInlineMapFlId(""); setInlineMapRmId(""); setInlineMapBdId(""); setInlineMapPrimary(false);
     setMapLevel("ROOM"); setMapBuildingId(""); setMapFloorId(""); setMapRoomId(""); setMapBedId(""); setMapPrimary(false);
   };
@@ -634,13 +648,51 @@ export function LocationMasterPage() {
     setDepartments((prev) => prev.map((d) => d.id === deptId ? { ...d, mappings: d.mappings.filter((m) => m.id !== mapId) } : d));
   };
 
+  // --- Soft Delete (sets isActive = "DELETED") ---
+  const softDelete = (type: "building" | "floor" | "room" | "bed" | "department", id: string) => {
+    if (type === "department") {
+      setDepartments((prev) => prev.map((d) => d.id === id ? { ...d, isActive: "DELETED" } : d));
+      return;
+    }
+    setOrganizations((prev) => prev.map((fac) => {
+      if (fac.id !== selectedOrgId) return fac;
+      return {
+        ...fac,
+        buildings: fac.buildings.map((b) => {
+          if (type === "building" && b.id === id) return { ...b, isActive: "DELETED" as RecordStatus };
+          return {
+            ...b,
+            floors: b.floors.map((f) => {
+              if (type === "floor" && f.id === id) return { ...f, isActive: "DELETED" as RecordStatus };
+              return {
+                ...f,
+                rooms: f.rooms.map((r) => {
+                  if (type === "room" && r.id === id) return { ...r, isActive: "DELETED" as RecordStatus };
+                  return {
+                    ...r,
+                    beds: r.beds.map((bd) => {
+                      if (type === "bed" && bd.id === id) return { ...bd, isActive: "DELETED" as RecordStatus };
+                      return bd;
+                    }),
+                  };
+                }),
+              };
+            }),
+          };
+        }),
+      };
+    }));
+  };
+
   // --- Filter ---
-  const facDepts = departments.filter((d) => d.orgId === selectedOrgId);
+  const facDepts = departments.filter((d) => d.orgId === selectedOrgId && d.isActive !== "DELETED");
   const filteredBuildings = selectedOrg?.buildings.filter((b) =>
-    b.buildingName.toLowerCase().includes(search.toLowerCase()) ||
-    b.buildingCode.toLowerCase().includes(search.toLowerCase()) ||
-    b.floors.some((f) => f.floorName.toLowerCase().includes(search.toLowerCase()) ||
-      f.rooms.some((r) => r.roomNo.toLowerCase().includes(search.toLowerCase()) || r.roomName.toLowerCase().includes(search.toLowerCase()))
+    b.isActive !== "DELETED" && (
+      b.buildingName.toLowerCase().includes(search.toLowerCase()) ||
+      b.buildingCode.toLowerCase().includes(search.toLowerCase()) ||
+      b.floors.some((f) => f.isActive !== "DELETED" && (f.floorName.toLowerCase().includes(search.toLowerCase()) ||
+        f.rooms.some((r) => r.isActive !== "DELETED" && (r.roomNo.toLowerCase().includes(search.toLowerCase()) || r.roomName.toLowerCase().includes(search.toLowerCase()))))
+      )
     )
   ) || [];
 
@@ -782,8 +834,9 @@ export function LocationMasterPage() {
                   ) : (
                     filteredBuildings.map((bld) => {
                       const bldExpanded = expandedBuildings.has(bld.id);
-                      const bldRoomCount = bld.floors.reduce((s, f) => s + f.rooms.length, 0);
-                      const bldBedCount = bld.floors.reduce((s, f) => s + f.rooms.reduce((s2, r) => s2 + r.beds.length, 0), 0);
+                      const vFloors = bld.floors.filter((f) => f.isActive !== "DELETED");
+                      const bldRoomCount = vFloors.reduce((s, f) => s + f.rooms.filter((r) => r.isActive !== "DELETED").length, 0);
+                      const bldBedCount = vFloors.reduce((s, f) => s + f.rooms.filter((r) => r.isActive !== "DELETED").reduce((s2, r) => s2 + r.beds.filter((b) => b.isActive !== "DELETED").length, 0), 0);
                       return (
                         <React.Fragment key={bld.id}>{/* Building Row */}
                           <TableRow className="bg-muted/20 hover:bg-muted/30 border-b border-border">
@@ -801,23 +854,25 @@ export function LocationMasterPage() {
                             <TableCell className="py-2 px-3"><span className="text-[11px] font-mono text-muted-foreground">{bld.buildingCode}</span></TableCell>
                             <TableCell className="py-2 px-3"><Badge className="text-[9px] border-0 bg-[#00BCD4]/10 text-[#00BCD4] font-bold">Building</Badge></TableCell>
                             <TableCell className="py-2 px-3 text-center">
-                              <span className="text-[10px] text-muted-foreground">{bld.floors.length}F / {bldRoomCount}R / {bldBedCount}B</span>
+                              <span className="text-[10px] text-muted-foreground">{vFloors.length}F / {bldRoomCount}R / {bldBedCount}B</span>
                             </TableCell>
                             <TableCell className="py-2 px-3 text-center">
-                              <Badge className={cn("text-[9px] font-bold border-0 px-2 py-0.5", bld.isActive ? "bg-[#10B981]/10 text-[#10B981]" : "bg-[#EF4444]/10 text-[#EF4444]")}>{bld.isActive ? "Active" : "Inactive"}</Badge>
+                              <Badge className="text-[9px] font-bold border-0 px-2 py-0.5" style={{ background: statusConfig[bld.isActive].bg, color: statusConfig[bld.isActive].color }}>{statusConfig[bld.isActive].label}</Badge>
                             </TableCell>
                             <TableCell className="py-2 px-3 text-center">
                               <div className="flex items-center justify-center gap-1">
                                 <button onClick={() => openAddFloor(bld.id)} className="inline-flex items-center gap-1 h-6 px-2 rounded text-[10px] font-bold text-[#3B82F6] bg-[#3B82F6]/10 hover:bg-[#3B82F6]/20 transition-colors" title="Add Floor"><Plus className="w-3 h-3" /> Floor</button>
                                 <button onClick={() => openEditBuilding(bld)} className="h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground hover:text-[#00BCD4] hover:bg-[#00BCD4]/10 transition-colors" title="Edit"><Pencil className="w-3 h-3" /></button>
+                                <button onClick={() => softDelete("building", bld.id)} className="h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors" title="Delete"><Trash2 className="w-3 h-3" /></button>
                               </div>
                             </TableCell>
                           </TableRow>
 
                           {/* Floor Rows */}
-                          {bldExpanded && bld.floors.map((fl) => {
+                          {bldExpanded && bld.floors.filter((fl) => fl.isActive !== "DELETED").map((fl) => {
                             const flExpanded = expandedFloors.has(fl.id);
-                            const flBedCount = fl.rooms.reduce((s, r) => s + r.beds.length, 0);
+                            const vRooms = fl.rooms.filter((r) => r.isActive !== "DELETED");
+                            const flBedCount = vRooms.reduce((s, r) => s + r.beds.filter((b) => b.isActive !== "DELETED").length, 0);
                             return (
                               <React.Fragment key={fl.id}>{/* Floor Row */}
                                 <TableRow className="hover:bg-muted/10 border-b border-border/50">
@@ -836,26 +891,27 @@ export function LocationMasterPage() {
                                   </TableCell>
                                   <TableCell className="py-1.5 px-3"><span className="text-[10px] font-mono text-muted-foreground">F{fl.floorNo}</span></TableCell>
                                   <TableCell className="py-1.5 px-3"><Badge className="text-[9px] border-0 bg-[#3B82F6]/10 text-[#3B82F6] font-bold">Floor</Badge></TableCell>
-                                  <TableCell className="py-1.5 px-3 text-center"><span className="text-[10px] text-muted-foreground">{fl.rooms.length}R / {flBedCount}B</span></TableCell>
+                                  <TableCell className="py-1.5 px-3 text-center"><span className="text-[10px] text-muted-foreground">{vRooms.length}R / {flBedCount}B</span></TableCell>
                                   <TableCell className="py-1.5 px-3 text-center">
-                                    <Badge className={cn("text-[9px] font-bold border-0 px-2 py-0.5", fl.isActive ? "bg-[#10B981]/10 text-[#10B981]" : "bg-[#EF4444]/10 text-[#EF4444]")}>{fl.isActive ? "Active" : "Inactive"}</Badge>
+                                    <Badge className="text-[9px] font-bold border-0 px-2 py-0.5" style={{ background: statusConfig[fl.isActive].bg, color: statusConfig[fl.isActive].color }}>{statusConfig[fl.isActive].label}</Badge>
                                   </TableCell>
                                   <TableCell className="py-1.5 px-3 text-center">
                                     <div className="flex items-center justify-center gap-1">
                                       <button onClick={() => openAddRoom(bld.id, fl.id)} className="inline-flex items-center gap-1 h-5 px-1.5 rounded text-[9px] font-bold text-[#8B5CF6] bg-[#8B5CF6]/10 hover:bg-[#8B5CF6]/20 transition-colors"><Plus className="w-2.5 h-2.5" /> Room</button>
                                       <button onClick={() => openEditFloor(bld.id, fl)} className="h-5 w-5 inline-flex items-center justify-center rounded text-muted-foreground hover:text-[#3B82F6] hover:bg-[#3B82F6]/10 transition-colors"><Pencil className="w-2.5 h-2.5" /></button>
+                                      <button onClick={() => softDelete("floor", fl.id)} className="h-5 w-5 inline-flex items-center justify-center rounded text-muted-foreground hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors"><Trash2 className="w-2.5 h-2.5" /></button>
                                     </div>
                                   </TableCell>
                                 </TableRow>
 
                                 {/* Room Rows */}
-                                {flExpanded && fl.rooms.map((rm) => {
+                                {flExpanded && fl.rooms.filter((rm) => rm.isActive !== "DELETED").map((rm) => {
                                   const rmExpanded = expandedRooms.has(rm.id);
                                   return (
                                     <React.Fragment key={rm.id}>{/* Room Row */}
                                       <TableRow className="hover:bg-muted/5 border-b border-border/30">
                                         <TableCell className="py-1 px-3">
-                                          {rm.beds.length > 0 ? (
+                                          {rm.beds.filter((b) => b.isActive !== "DELETED").length > 0 ? (
                                             <div className="pl-8">
                                               <button onClick={() => toggle(expandedRooms, rm.id, setExpandedRooms)} className="p-0.5 rounded hover:bg-muted/50">
                                                 {rmExpanded ? <ChevronDown className="w-2.5 h-2.5 text-muted-foreground" /> : <ChevronRight className="w-2.5 h-2.5 text-muted-foreground" />}
@@ -871,20 +927,21 @@ export function LocationMasterPage() {
                                         </TableCell>
                                         <TableCell className="py-1 px-3"><span className="text-[10px] font-mono text-muted-foreground">{rm.roomNo}</span></TableCell>
                                         <TableCell className="py-1 px-3"><span className="text-[10px] text-muted-foreground">{rm.roomTypeName}</span></TableCell>
-                                        <TableCell className="py-1 px-3 text-center"><span className="text-[10px] text-muted-foreground">{rm.beds.length}B</span></TableCell>
+                                        <TableCell className="py-1 px-3 text-center"><span className="text-[10px] text-muted-foreground">{rm.beds.filter((b) => b.isActive !== "DELETED").length}B</span></TableCell>
                                         <TableCell className="py-1 px-3 text-center">
-                                          <Badge className={cn("text-[8px] font-bold border-0 px-1.5 py-0", rm.isActive ? "bg-[#10B981]/10 text-[#10B981]" : "bg-[#EF4444]/10 text-[#EF4444]")}>{rm.isActive ? "Active" : "Inactive"}</Badge>
+                                          <Badge className="text-[8px] font-bold border-0 px-1.5 py-0" style={{ background: statusConfig[rm.isActive].bg, color: statusConfig[rm.isActive].color }}>{statusConfig[rm.isActive].label}</Badge>
                                         </TableCell>
                                         <TableCell className="py-1 px-3 text-center">
                                           <div className="flex items-center justify-center gap-1">
                                             <button onClick={() => openAddBed(bld.id, fl.id, rm.id)} className="inline-flex items-center gap-0.5 h-5 px-1.5 rounded text-[9px] font-bold text-[#F59E0B] bg-[#F59E0B]/10 hover:bg-[#F59E0B]/20 transition-colors"><Plus className="w-2.5 h-2.5" /> Bed</button>
                                             <button onClick={() => openEditRoom(bld.id, fl.id, rm)} className="h-5 w-5 inline-flex items-center justify-center rounded text-muted-foreground hover:text-[#8B5CF6] hover:bg-[#8B5CF6]/10 transition-colors"><Pencil className="w-2.5 h-2.5" /></button>
+                                            <button onClick={() => softDelete("room", rm.id)} className="h-5 w-5 inline-flex items-center justify-center rounded text-muted-foreground hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors"><Trash2 className="w-2.5 h-2.5" /></button>
                                           </div>
                                         </TableCell>
                                       </TableRow>
 
                                       {/* Bed Rows */}
-                                      {rmExpanded && rm.beds.map((bd) => (
+                                      {rmExpanded && rm.beds.filter((bd) => bd.isActive !== "DELETED").map((bd) => (
                                         <TableRow key={bd.id} className="hover:bg-muted/5 border-b border-border/20">
                                           <TableCell className="py-0.5 px-3"><div className="pl-12" /></TableCell>
                                           <TableCell className="py-0.5 px-3">
@@ -897,9 +954,11 @@ export function LocationMasterPage() {
                                           <TableCell className="py-0.5 px-3"><span className="text-[9px] text-muted-foreground">Bed</span></TableCell>
                                           <TableCell className="py-0.5 px-3" />
                                           <TableCell className="py-0.5 px-3 text-center">
-                                            <span className={cn("text-[8px] font-bold", bd.isActive ? "text-[#10B981]" : "text-[#EF4444]")}>{bd.isActive ? "Active" : "Inactive"}</span>
+                                            <span className="text-[8px] font-bold" style={{ color: statusConfig[bd.isActive].color }}>{statusConfig[bd.isActive].label}</span>
                                           </TableCell>
-                                          <TableCell className="py-0.5 px-3" />
+                                          <TableCell className="py-0.5 px-3 text-center">
+                                            <button onClick={() => softDelete("bed", bd.id)} className="h-4 w-4 inline-flex items-center justify-center rounded text-muted-foreground hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors"><Trash2 className="w-2.5 h-2.5" /></button>
+                                          </TableCell>
                                         </TableRow>
                                       ))}
                                     </React.Fragment>
@@ -970,12 +1029,13 @@ export function LocationMasterPage() {
                           )}
                         </TableCell>
                         <TableCell className="py-2.5 px-3 text-center">
-                          <Badge className={cn("text-[9px] font-bold border-0 px-2 py-0.5", dept.isActive ? "bg-[#10B981]/10 text-[#10B981]" : "bg-[#EF4444]/10 text-[#EF4444]")}>{dept.isActive ? "Active" : "Inactive"}</Badge>
+                          <Badge className="text-[9px] font-bold border-0 px-2 py-0.5" style={{ background: statusConfig[dept.isActive].bg, color: statusConfig[dept.isActive].color }}>{statusConfig[dept.isActive].label}</Badge>
                         </TableCell>
                         <TableCell className="py-2.5 px-3 text-center">
                           <div className="flex items-center justify-center gap-1">
                             <button onClick={() => openAddMapping(dept.id)} className="inline-flex items-center gap-1 h-6 px-2 rounded text-[10px] font-bold text-[#3B82F6] bg-[#3B82F6]/10 hover:bg-[#3B82F6]/20 transition-colors" title="Map Location"><Link2 className="w-3 h-3" /> Map</button>
                             <button onClick={() => openEditDept(dept)} className="h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground hover:text-[#10B981] hover:bg-[#10B981]/10 transition-colors" title="Edit"><Pencil className="w-3 h-3" /></button>
+                            <button onClick={() => softDelete("department", dept.id)} className="h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors" title="Delete"><Trash2 className="w-3 h-3" /></button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -1012,12 +1072,15 @@ export function LocationMasterPage() {
                     <FormField label="Building Code" hint="Short unique code">
                       <Input className="h-9 text-xs font-mono" placeholder="e.g. MT" value={bCode} onChange={(e) => setBCode(e.target.value)} />
                     </FormField>
-                    <div className="flex items-end pb-1">
-                      <div className="flex items-center gap-2">
-                        <Checkbox checked={bActive} onCheckedChange={(v) => setBActive(!!v)} id="bActive" />
-                        <Label htmlFor="bActive" className="text-xs font-semibold text-foreground cursor-pointer">Active</Label>
-                      </div>
-                    </div>
+                    <FormField label="Status" required hint="ACTIVE or INACTIVE">
+                      <Select value={bActive} onValueChange={(v) => setBActive(v as RecordStatus)}>
+                        <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ACTIVE">Active</SelectItem>
+                          <SelectItem value="INACTIVE">Inactive</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormField>
                   </div>
                   <FormField label="Description">
                     <Textarea className="text-xs min-h-[60px]" placeholder="Optional description" value={bDesc} onChange={(e) => setBDesc(e.target.value)} />
@@ -1036,10 +1099,15 @@ export function LocationMasterPage() {
                       <Input className="h-9 text-xs" placeholder="e.g. Ground Floor" value={fName} onChange={(e) => setFName(e.target.value)} />
                     </FormField>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Checkbox checked={fActive} onCheckedChange={(v) => setFActive(!!v)} id="fActive" />
-                    <Label htmlFor="fActive" className="text-xs font-semibold text-foreground cursor-pointer">Active</Label>
-                  </div>
+                  <FormField label="Status" required hint="ACTIVE or INACTIVE">
+                    <Select value={fActive} onValueChange={(v) => setFActive(v as RecordStatus)}>
+                      <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ACTIVE">Active</SelectItem>
+                        <SelectItem value="INACTIVE">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormField>
                 </>
               )}
 
@@ -1067,10 +1135,15 @@ export function LocationMasterPage() {
                       </SelectContent>
                     </Select>
                   </FormField>
-                  <div className="flex items-center gap-2">
-                    <Checkbox checked={rActive} onCheckedChange={(v) => setRActive(!!v)} id="rActive" />
-                    <Label htmlFor="rActive" className="text-xs font-semibold text-foreground cursor-pointer">Active</Label>
-                  </div>
+                  <FormField label="Status" required hint="ACTIVE or INACTIVE">
+                    <Select value={rActive} onValueChange={(v) => setRActive(v as RecordStatus)}>
+                      <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ACTIVE">Active</SelectItem>
+                        <SelectItem value="INACTIVE">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormField>
                 </>
               )}
 
@@ -1085,10 +1158,15 @@ export function LocationMasterPage() {
                       <Input className="h-9 text-xs font-mono" placeholder="e.g. ICU-B1" value={bedCode} onChange={(e) => setBedCode(e.target.value)} />
                     </FormField>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Checkbox checked={bedActive} onCheckedChange={(v) => setBedActive(!!v)} id="bedActive" />
-                    <Label htmlFor="bedActive" className="text-xs font-semibold text-foreground cursor-pointer">Active</Label>
-                  </div>
+                  <FormField label="Status" required hint="ACTIVE or INACTIVE">
+                    <Select value={bedActive} onValueChange={(v) => setBedActive(v as RecordStatus)}>
+                      <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ACTIVE">Active</SelectItem>
+                        <SelectItem value="INACTIVE">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormField>
                 </>
               )}
 
@@ -1106,10 +1184,15 @@ export function LocationMasterPage() {
                   <FormField label="Description">
                     <Textarea className="text-xs min-h-[60px]" placeholder="Optional description" value={dDesc} onChange={(e) => setDDesc(e.target.value)} />
                   </FormField>
-                  <div className="flex items-center gap-2">
-                    <Checkbox checked={dActive} onCheckedChange={(v) => setDActive(!!v)} id="dActive" />
-                    <Label htmlFor="dActive" className="text-xs font-semibold text-foreground cursor-pointer">Active</Label>
-                  </div>
+                  <FormField label="Status" required hint="ACTIVE or INACTIVE">
+                    <Select value={dActive} onValueChange={(v) => setDActive(v as RecordStatus)}>
+                      <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ACTIVE">Active</SelectItem>
+                        <SelectItem value="INACTIVE">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormField>
 
                   {/* Inline Location Mapping Section */}
                   <div className="mt-2 pt-4 border-t border-border">

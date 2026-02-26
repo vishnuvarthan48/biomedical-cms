@@ -4,7 +4,9 @@ import App from "./App";
 import "./globals.css";
 import Providers from "./redux/Providers";
 
-createRoot(document.getElementById("root")!).render(
+const root = document.getElementById("root")!;
+
+createRoot(root).render(
   <StrictMode>
     <Providers>
       <App />

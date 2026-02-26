@@ -1,0 +1,754 @@
+-- ============================================================================
+-- API SPECIFICATION: Location, Department & Mapping Module
+-- Module     : Administration > Location & Department Master
+-- Version    : 1.0
+-- Base URL   : /api/v1
+-- Auth       : Bearer JWT (tenant_id + org_id extracted from token)
+-- Headers    : Authorization, X-Tenant-Id, X-Org-Id, Content-Type
+-- Convention : RESTful, snake_case body, camelCase response (via serializer)
+-- ============================================================================
+
+
+-- ============================================================================
+-- SECTION 1: LOOKUP ENDPOINTS
+-- ============================================================================
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  1.1  GET /api/v1/room-types                                              │
+-- │  Purpose : Load room type dropdown (ICU, OT, Ward, Lab, CSSD, etc.)       │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  Query   : ?is_active=true                                                │
+-- │  DB      : SELECT * FROM room_type WHERE tenant_id=:tid ORDER BY sort_order│
+-- │  Response: 200                                                            │
+-- │  {                                                                        │
+-- │    "data": [                                                              │
+-- │      { "id": 1, "code": "ICU", "name": "Intensive Care Unit",            │
+-- │        "description": "Critical care rooms", "sortOrder": 1,             │
+-- │        "isActive": true }                                                 │
+-- │    ]                                                                      │
+-- │  }                                                                        │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  1.2  GET /api/v1/location-levels                                         │
+-- │  Purpose : Load location level dropdown (BUILDING, FLOOR, ROOM, BED)      │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  DB      : SELECT * FROM location_level WHERE tenant_id=:tid              │
+-- │            ORDER BY sort_order                                            │
+-- │  Response: 200                                                            │
+-- │  {                                                                        │
+-- │    "data": [                                                              │
+-- │      { "id": 1, "code": "BUILDING", "name": "Building", "sortOrder": 1 },│
+-- │      { "id": 2, "code": "FLOOR",    "name": "Floor",    "sortOrder": 2 },│
+-- │      { "id": 3, "code": "ROOM",     "name": "Room",     "sortOrder": 3 },│
+-- │      { "id": 4, "code": "BED",      "name": "Bed",      "sortOrder": 4 } │
+-- │    ]                                                                      │
+-- │  }                                                                        │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+
+-- ============================================================================
+-- SECTION 2: BUILDING APIs
+-- ============================================================================
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  2.1  GET /api/v1/buildings                                               │
+-- │  Purpose : List all buildings for an organization (sidebar tree root)      │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  Query   : ?org_id=1 (required)                                           │
+-- │            &is_active=true (optional)                                      │
+-- │            &search=tower (optional, searches name + code)                  │
+-- │  DB      : SELECT * FROM vw_building_summary                              │
+-- │            WHERE tenant_id=:tid AND org_id=:oid                           │
+-- │  Response: 200                                                            │
+-- │  {                                                                        │
+-- │    "data": [                                                              │
+-- │      {                                                                    │
+-- │        "buildingId": 1,                                                   │
+-- │        "buildingName": "Main Tower",                                      │
+-- │        "buildingCode": "MT",                                              │
+-- │        "isActive": true,                                                  │
+-- │        "orgId": 1,                                                        │
+-- │        "floorCount": 8,                                                   │
+-- │        "roomCount": 19,                                                   │
+-- │        "bedCount": 116,                                                   │
+-- │        "activeBedCount": 116                                              │
+-- │      }                                                                    │
+-- │    ]                                                                      │
+-- │  }                                                                        │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  2.2  GET /api/v1/buildings/:buildingId                                   │
+-- │  Purpose : Get single building with full floor > room > bed tree          │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  DB      : SELECT b.*, json_agg(floors with nested rooms/beds)            │
+-- │  Response: 200                                                            │
+-- │  {                                                                        │
+-- │    "data": {                                                              │
+-- │      "buildingId": 1,                                                     │
+-- │      "buildingName": "Main Tower",                                        │
+-- │      "buildingCode": "MT",                                                │
+-- │      "description": "Primary 8-floor main tower",                         │
+-- │      "isActive": true,                                                    │
+-- │      "orgId": 1,                                                          │
+-- │      "floors": [                                                          │
+-- │        {                                                                  │
+-- │          "floorId": 1, "floorNo": -1, "floorName": "Basement",           │
+-- │          "rooms": [                                                       │
+-- │            {                                                              │
+-- │              "roomId": 1, "roomNo": "CSSD-B01", "roomName": "CSSD",      │
+-- │              "roomTypeId": 16, "roomTypeName": "CSSD",                    │
+-- │              "beds": [                                                    │
+-- │                { "bedId": 1, "bedNo": "1", "bedCode": "ER-B1" }          │
+-- │              ]                                                            │
+-- │            }                                                              │
+-- │          ]                                                                │
+-- │        }                                                                  │
+-- │      ]                                                                    │
+-- │    }                                                                      │
+-- │  }                                                                        │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  2.3  POST /api/v1/buildings                                              │
+-- │  Purpose : Create a new building under an organization                    │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  Body    :                                                                │
+-- │  {                                                                        │
+-- │    "orgId": 1,                                                            │
+-- │    "buildingName": "East Wing",                                           │
+-- │    "buildingCode": "EW",                                                  │
+-- │    "description": "New east wing expansion",                              │
+-- │    "isActive": true                                                       │
+-- │  }                                                                        │
+-- │  DB      : INSERT INTO building (tenant_id, org_id, building_name, ...)   │
+-- │  Response: 201 { "data": { "buildingId": 4, ... } }                       │
+-- │  Errors  : 400 (validation), 409 (duplicate building_code in org)         │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  2.4  PUT /api/v1/buildings/:buildingId                                   │
+-- │  Purpose : Update building details                                        │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  Body    :                                                                │
+-- │  {                                                                        │
+-- │    "buildingName": "East Wing - Renovated",                               │
+-- │    "buildingCode": "EW",                                                  │
+-- │    "description": "Updated description",                                  │
+-- │    "isActive": true                                                       │
+-- │  }                                                                        │
+-- │  DB      : UPDATE building SET ... WHERE building_id=:id AND tenant_id=:tid│
+-- │  Response: 200 { "data": { "buildingId": 4, ... } }                       │
+-- │  Errors  : 400, 404, 409                                                  │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  2.5  DELETE /api/v1/buildings/:buildingId                                │
+-- │  Purpose : Delete building (cascades to floors > rooms > beds)            │
+-- │  Access  : tenant-admin, platform-admin                                   │
+-- │  DB      : DELETE FROM building WHERE building_id=:id AND tenant_id=:tid  │
+-- │  Guard   : Check department_location_map references before delete         │
+-- │  Response: 200 { "message": "Building deleted" }                          │
+-- │  Errors  : 404, 409 (has active dept mappings)                            │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+
+-- ============================================================================
+-- SECTION 3: FLOOR APIs
+-- ============================================================================
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  3.1  GET /api/v1/buildings/:buildingId/floors                            │
+-- │  Purpose : List floors for a building (accordion items in tree)           │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  Query   : ?is_active=true                                                │
+-- │  DB      : SELECT * FROM vw_floor_detail                                  │
+-- │            WHERE building_id=:bid AND tenant_id=:tid                      │
+-- │            ORDER BY floor_no                                              │
+-- │  Response: 200                                                            │
+-- │  {                                                                        │
+-- │    "data": [                                                              │
+-- │      {                                                                    │
+-- │        "floorId": 1, "floorNo": -1, "floorName": "Basement",             │
+-- │        "isActive": true, "roomCount": 1, "bedCount": 0,                  │
+-- │        "roomTypes": "CSSD"                                                │
+-- │      }                                                                    │
+-- │    ]                                                                      │
+-- │  }                                                                        │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  3.2  POST /api/v1/buildings/:buildingId/floors                           │
+-- │  Purpose : Create a new floor under a building                            │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  Body    :                                                                │
+-- │  {                                                                        │
+-- │    "floorNo": 7,                                                          │
+-- │    "floorName": "7th Floor",                                              │
+-- │    "description": "Pediatrics wing",                                      │
+-- │    "isActive": true                                                       │
+-- │  }                                                                        │
+-- │  DB      : INSERT INTO floor (tenant_id, org_id, building_id, ...)        │
+-- │            org_id resolved from building.org_id                           │
+-- │  Response: 201 { "data": { "floorId": 20, ... } }                        │
+-- │  Errors  : 400, 409 (duplicate floor_no in building)                      │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  3.3  PUT /api/v1/floors/:floorId                                         │
+-- │  Purpose : Update floor details                                           │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  Body    :                                                                │
+-- │  {                                                                        │
+-- │    "floorName": "7th Floor - Pediatrics",                                 │
+-- │    "description": "Updated",                                              │
+-- │    "isActive": true                                                       │
+-- │  }                                                                        │
+-- │  DB      : UPDATE floor SET ... WHERE floor_id=:id AND tenant_id=:tid     │
+-- │  Response: 200 { "data": { "floorId": 20, ... } }                        │
+-- │  Errors  : 400, 404                                                       │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  3.4  DELETE /api/v1/floors/:floorId                                      │
+-- │  Purpose : Delete floor (cascades to rooms > beds)                        │
+-- │  Access  : tenant-admin, platform-admin                                   │
+-- │  Guard   : Check department_location_map references                       │
+-- │  Response: 200 { "message": "Floor deleted" }                             │
+-- │  Errors  : 404, 409 (has active dept mappings)                            │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+
+-- ============================================================================
+-- SECTION 4: ROOM APIs
+-- ============================================================================
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  4.1  GET /api/v1/floors/:floorId/rooms                                   │
+-- │  Purpose : List rooms for a floor (table rows in floor expansion)         │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  Query   : ?is_active=true                                                │
+-- │            &room_type_id=2 (optional filter)                              │
+-- │  DB      : SELECT * FROM vw_room_detail                                   │
+-- │            WHERE floor_id=:fid AND tenant_id=:tid                         │
+-- │  Response: 200                                                            │
+-- │  {                                                                        │
+-- │    "data": [                                                              │
+-- │      {                                                                    │
+-- │        "roomId": 10, "roomNo": "MICU-301", "roomName": "MICU",           │
+-- │        "roomTypeCode": "MICU", "roomTypeName": "Medical ICU",            │
+-- │        "isActive": true, "bedCount": 12, "activeBedCount": 12            │
+-- │      }                                                                    │
+-- │    ]                                                                      │
+-- │  }                                                                        │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  4.2  POST /api/v1/floors/:floorId/rooms                                  │
+-- │  Purpose : Create a new room under a floor                                │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  Body    :                                                                │
+-- │  {                                                                        │
+-- │    "roomNo": "PDX-701",                                                   │
+-- │    "roomName": "Pediatrics Ward",                                         │
+-- │    "roomTypeId": 7,                                                       │
+-- │    "description": "Children's ward",                                      │
+-- │    "isActive": true                                                       │
+-- │  }                                                                        │
+-- │  DB      : INSERT INTO room (tenant_id, org_id, floor_id, ...)            │
+-- │            org_id resolved from floor.org_id                              │
+-- │  Response: 201 { "data": { "roomId": 35, ... } }                         │
+-- │  Errors  : 400, 409 (duplicate room_no in floor)                          │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  4.3  PUT /api/v1/rooms/:roomId                                           │
+-- │  Purpose : Update room details                                            │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  Body    :                                                                │
+-- │  {                                                                        │
+-- │    "roomNo": "PDX-701",                                                   │
+-- │    "roomName": "Pediatrics Ward - Updated",                               │
+-- │    "roomTypeId": 7,                                                       │
+-- │    "description": "Updated description",                                  │
+-- │    "isActive": true                                                       │
+-- │  }                                                                        │
+-- │  Response: 200 { "data": { "roomId": 35, ... } }                         │
+-- │  Errors  : 400, 404, 409                                                  │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  4.4  DELETE /api/v1/rooms/:roomId                                        │
+-- │  Purpose : Delete room (cascades to beds)                                 │
+-- │  Access  : tenant-admin, platform-admin                                   │
+-- │  Guard   : Check department_location_map references                       │
+-- │  Response: 200 { "message": "Room deleted" }                              │
+-- │  Errors  : 404, 409 (has active dept mappings)                            │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+
+-- ============================================================================
+-- SECTION 5: BED APIs
+-- ============================================================================
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  5.1  GET /api/v1/rooms/:roomId/beds                                      │
+-- │  Purpose : List beds for a room (bed grid in room expansion)              │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  Query   : ?is_active=true                                                │
+-- │  DB      : SELECT * FROM bed WHERE room_id=:rid AND tenant_id=:tid        │
+-- │            ORDER BY bed_no::INT                                           │
+-- │  Response: 200                                                            │
+-- │  {                                                                        │
+-- │    "data": [                                                              │
+-- │      { "bedId": 85, "bedNo": "1", "bedCode": "MICU-B1",                  │
+-- │        "isActive": true }                                                 │
+-- │    ]                                                                      │
+-- │  }                                                                        │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  5.2  POST /api/v1/rooms/:roomId/beds                                     │
+-- │  Purpose : Create a new bed (or bulk beds) under a room                   │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  Body (single):                                                           │
+-- │  {                                                                        │
+-- │    "bedNo": "13",                                                         │
+-- │    "bedCode": "MICU-B13",                                                 │
+-- │    "isActive": true                                                       │
+-- │  }                                                                        │
+-- │  Body (bulk):                                                             │
+-- │  {                                                                        │
+-- │    "bulk": true,                                                          │
+-- │    "startNo": 1,                                                          │
+-- │    "count": 12,                                                           │
+-- │    "codePrefix": "MICU-B",                                                │
+-- │    "isActive": true                                                       │
+-- │  }                                                                        │
+-- │  DB      : INSERT INTO bed (tenant_id, org_id, room_id, ...)              │
+-- │            org_id resolved from room.org_id                               │
+-- │  Response: 201 { "data": [ { "bedId": 171, ... } ] }                     │
+-- │  Errors  : 400, 409 (duplicate bed_no in room)                            │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  5.3  PUT /api/v1/beds/:bedId                                             │
+-- │  Purpose : Update bed details (code, active status)                       │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  Body    :                                                                │
+-- │  {                                                                        │
+-- │    "bedNo": "13",                                                         │
+-- │    "bedCode": "MICU-B13-R",                                               │
+-- │    "isActive": false                                                      │
+-- │  }                                                                        │
+-- │  Response: 200 { "data": { "bedId": 171, ... } }                         │
+-- │  Errors  : 400, 404, 409                                                  │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  5.4  DELETE /api/v1/beds/:bedId                                          │
+-- │  Purpose : Delete a single bed                                            │
+-- │  Access  : tenant-admin, platform-admin                                   │
+-- │  Guard   : Check department_location_map references                       │
+-- │  Response: 200 { "message": "Bed deleted" }                               │
+-- │  Errors  : 404, 409 (has active dept mappings)                            │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+
+-- ============================================================================
+-- SECTION 6: DEPARTMENT APIs
+-- ============================================================================
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  6.1  GET /api/v1/departments                                             │
+-- │  Purpose : List departments for an organization (department tab)          │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  Query   : ?org_id=1 (required)                                           │
+-- │            &is_active=true (optional)                                      │
+-- │            &search=emergency (optional, searches name + code)              │
+-- │            &page=1&limit=20 (pagination)                                  │
+-- │  DB      : SELECT d.*, COUNT(dlm.dept_loc_id) AS mapping_count            │
+-- │            FROM department d                                              │
+-- │            LEFT JOIN department_location_map dlm ON dlm.dept_id=d.dept_id │
+-- │            WHERE d.tenant_id=:tid AND d.org_id=:oid                       │
+-- │            GROUP BY d.dept_id                                             │
+-- │  Response: 200                                                            │
+-- │  {                                                                        │
+-- │    "data": [                                                              │
+-- │      {                                                                    │
+-- │        "deptId": 1,                                                       │
+-- │        "deptName": "Emergency Medicine",                                  │
+-- │        "deptCode": "EM",                                                  │
+-- │        "description": "Emergency department",                             │
+-- │        "isActive": true,                                                  │
+-- │        "orgId": 1,                                                        │
+-- │        "mappingCount": 5                                                  │
+-- │      }                                                                    │
+-- │    ],                                                                     │
+-- │    "pagination": { "page": 1, "limit": 20, "total": 8 }                  │
+-- │  }                                                                        │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  6.2  GET /api/v1/departments/:deptId                                     │
+-- │  Purpose : Get single department with all its location mappings           │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  DB      : SELECT d.*, json_agg(dlm with breadcrumb)                      │
+-- │            FROM department d                                              │
+-- │            LEFT JOIN vw_department_location_summary dlm                    │
+-- │              ON dlm.dept_id = d.dept_id                                   │
+-- │            WHERE d.dept_id=:id AND d.tenant_id=:tid                       │
+-- │  Response: 200                                                            │
+-- │  {                                                                        │
+-- │    "data": {                                                              │
+-- │      "deptId": 1,                                                         │
+-- │      "deptName": "Emergency Medicine",                                    │
+-- │      "deptCode": "EM",                                                    │
+-- │      "description": "Emergency department",                               │
+-- │      "isActive": true,                                                    │
+-- │      "orgId": 1,                                                          │
+-- │      "mappings": [                                                        │
+-- │        {                                                                  │
+-- │          "deptLocId": 1,                                                  │
+-- │          "locationLevel": "ROOM",                                         │
+-- │          "locationId": 2,                                                 │
+-- │          "isPrimary": true,                                               │
+-- │          "locationName": "Emergency",                                     │
+-- │          "locationBreadcrumb": "Main Tower > Ground Floor > ER-001 - EM"  │
+-- │        },                                                                 │
+-- │        {                                                                  │
+-- │          "deptLocId": 2,                                                  │
+-- │          "locationLevel": "BED",                                          │
+-- │          "locationId": 1,                                                 │
+-- │          "isPrimary": false,                                              │
+-- │          "locationName": "Bed 1",                                         │
+-- │          "locationBreadcrumb": "Main Tower > GF > ER-001 > Bed 1"         │
+-- │        }                                                                  │
+-- │      ]                                                                    │
+-- │    }                                                                      │
+-- │  }                                                                        │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  6.3  POST /api/v1/departments                                            │
+-- │  Purpose : Create department with optional inline location mappings       │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  Note    : Supports creating department + mappings in a single call       │
+-- │            (matches the "Add Department" modal with inline mapping UI)    │
+-- │  Body    :                                                                │
+-- │  {                                                                        │
+-- │    "orgId": 1,                                                            │
+-- │    "deptName": "Dialysis Unit",                                           │
+-- │    "deptCode": "DU",                                                      │
+-- │    "description": "Renal dialysis services",                              │
+-- │    "isActive": true,                                                      │
+-- │    "mappings": [                                                          │
+-- │      { "locationLevelCode": "ROOM", "locationId": 24, "isPrimary": true },│
+-- │      { "locationLevelCode": "BED",  "locationId": 117, "isPrimary": false}│
+-- │    ]                                                                      │
+-- │  }                                                                        │
+-- │  DB      : BEGIN                                                          │
+-- │              INSERT INTO department (...) RETURNING dept_id;              │
+-- │              INSERT INTO department_location_map (...) for each mapping;  │
+-- │            COMMIT                                                         │
+-- │  Response: 201                                                            │
+-- │  {                                                                        │
+-- │    "data": {                                                              │
+-- │      "deptId": 11,                                                        │
+-- │      "deptName": "Dialysis Unit",                                         │
+-- │      "mappings": [ { "deptLocId": 58, ... } ]                             │
+-- │    }                                                                      │
+-- │  }                                                                        │
+-- │  Errors  : 400 (validation), 409 (duplicate dept_name in org)             │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  6.4  PUT /api/v1/departments/:deptId                                     │
+-- │  Purpose : Update department details (name, code, description, active)    │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  Note    : Does NOT update mappings. Use mapping endpoints (7.x) for that.│
+-- │  Body    :                                                                │
+-- │  {                                                                        │
+-- │    "deptName": "Dialysis Unit - Updated",                                 │
+-- │    "deptCode": "DU",                                                      │
+-- │    "description": "Updated description",                                  │
+-- │    "isActive": true                                                       │
+-- │  }                                                                        │
+-- │  DB      : UPDATE department SET ... WHERE dept_id=:id AND tenant_id=:tid │
+-- │  Response: 200 { "data": { "deptId": 11, ... } }                         │
+-- │  Errors  : 400, 404, 409                                                  │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  6.5  DELETE /api/v1/departments/:deptId                                  │
+-- │  Purpose : Delete department and all its location mappings (cascade)      │
+-- │  Access  : tenant-admin, platform-admin                                   │
+-- │  DB      : DELETE FROM department WHERE dept_id=:id AND tenant_id=:tid    │
+-- │            (cascades to department_location_map)                           │
+-- │  Response: 200 { "message": "Department deleted" }                        │
+-- │  Errors  : 404                                                            │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+
+-- ============================================================================
+-- SECTION 7: DEPARTMENT-LOCATION MAPPING APIs
+-- ============================================================================
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  7.1  GET /api/v1/departments/:deptId/mappings                            │
+-- │  Purpose : List all location mappings for a department (mapping tab)      │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  DB      : SELECT * FROM vw_department_location_summary                   │
+-- │            WHERE dept_id=:did AND tenant_id=:tid                          │
+-- │  Response: 200                                                            │
+-- │  {                                                                        │
+-- │    "data": [                                                              │
+-- │      {                                                                    │
+-- │        "deptLocId": 1,                                                    │
+-- │        "locationLevel": "ROOM",                                           │
+-- │        "locationId": 2,                                                   │
+-- │        "isPrimary": true,                                                 │
+-- │        "locationName": "Emergency",                                       │
+-- │        "locationBreadcrumb": "Main Tower > Ground Floor > ER-001 - EM"    │
+-- │      }                                                                    │
+-- │    ]                                                                      │
+-- │  }                                                                        │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  7.2  POST /api/v1/departments/:deptId/mappings                           │
+-- │  Purpose : Add a location mapping to a department                         │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  Body    :                                                                │
+-- │  {                                                                        │
+-- │    "locationLevelCode": "BED",                                            │
+-- │    "locationId": 85,                                                      │
+-- │    "isPrimary": false                                                     │
+-- │  }                                                                        │
+-- │  Logic   : 1. Resolve location_level_id from code                         │
+-- │            2. Validate locationId exists in the correct table              │
+-- │            3. If isPrimary=true, unset existing primary for this dept     │
+-- │            4. INSERT INTO department_location_map                          │
+-- │  DB      : BEGIN                                                          │
+-- │              UPDATE department_location_map SET is_primary=false           │
+-- │                WHERE dept_id=:did AND is_primary=true  -- if isPrimary     │
+-- │              INSERT INTO department_location_map (...);                    │
+-- │            COMMIT                                                         │
+-- │  Response: 201 { "data": { "deptLocId": 59, ... } }                      │
+-- │  Errors  : 400, 404 (invalid locationId), 409 (duplicate mapping)         │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  7.3  PUT /api/v1/departments/:deptId/mappings/:deptLocId                 │
+-- │  Purpose : Update mapping (toggle isPrimary)                              │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  Body    :                                                                │
+-- │  {                                                                        │
+-- │    "isPrimary": true                                                      │
+-- │  }                                                                        │
+-- │  Logic   : If isPrimary=true, unset existing primary for this dept        │
+-- │  DB      : BEGIN                                                          │
+-- │              UPDATE department_location_map SET is_primary=false           │
+-- │                WHERE dept_id=:did AND is_primary=true;                     │
+-- │              UPDATE department_location_map SET is_primary=:val            │
+-- │                WHERE dept_loc_id=:id;                                      │
+-- │            COMMIT                                                         │
+-- │  Response: 200 { "data": { "deptLocId": 59, ... } }                      │
+-- │  Errors  : 400, 404                                                       │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  7.4  DELETE /api/v1/departments/:deptId/mappings/:deptLocId              │
+-- │  Purpose : Remove a single location mapping from a department             │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  DB      : DELETE FROM department_location_map                            │
+-- │            WHERE dept_loc_id=:id AND dept_id=:did AND tenant_id=:tid      │
+-- │  Response: 200 { "message": "Mapping removed" }                           │
+-- │  Errors  : 404                                                            │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  7.5  POST /api/v1/departments/:deptId/mappings/bulk                      │
+-- │  Purpose : Add multiple mappings at once (used by inline mapping UI)      │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  Body    :                                                                │
+-- │  {                                                                        │
+-- │    "mappings": [                                                          │
+-- │      { "locationLevelCode": "ROOM", "locationId": 24, "isPrimary": true },│
+-- │      { "locationLevelCode": "BED",  "locationId": 117, "isPrimary": false},│
+-- │      { "locationLevelCode": "BED",  "locationId": 118, "isPrimary": false}│
+-- │    ]                                                                      │
+-- │  }                                                                        │
+-- │  Logic   : Same as 7.2, but batched in a transaction                      │
+-- │  Response: 201                                                            │
+-- │  {                                                                        │
+-- │    "data": [                                                              │
+-- │      { "deptLocId": 60, ... },                                            │
+-- │      { "deptLocId": 61, ... },                                            │
+-- │      { "deptLocId": 62, ... }                                             │
+-- │    ]                                                                      │
+-- │  }                                                                        │
+-- │  Errors  : 400, 409 (any duplicate skipped or rejected based on config)   │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+
+-- ============================================================================
+-- SECTION 8: LOCATION CASCADE / DROPDOWN APIs (for cascading selects)
+-- ============================================================================
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  8.1  GET /api/v1/locations/buildings                                      │
+-- │  Purpose : Cascading dropdown - buildings for org                         │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  Query   : ?org_id=1                                                      │
+-- │  DB      : SELECT building_id, building_name, building_code               │
+-- │            FROM building WHERE tenant_id=:tid AND org_id=:oid             │
+-- │            AND is_active=true ORDER BY building_name                       │
+-- │  Response: 200                                                            │
+-- │  { "data": [{ "id": 1, "name": "Main Tower", "code": "MT" }] }           │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  8.2  GET /api/v1/locations/floors                                         │
+-- │  Purpose : Cascading dropdown - floors for a building                     │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  Query   : ?building_id=1                                                 │
+-- │  DB      : SELECT floor_id, floor_no, floor_name                          │
+-- │            FROM floor WHERE building_id=:bid AND tenant_id=:tid           │
+-- │            AND is_active=true ORDER BY floor_no                           │
+-- │  Response: 200                                                            │
+-- │  { "data": [{ "id": 2, "floorNo": 0, "name": "Ground Floor" }] }         │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  8.3  GET /api/v1/locations/rooms                                          │
+-- │  Purpose : Cascading dropdown - rooms for a floor                         │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  Query   : ?floor_id=2                                                    │
+-- │  DB      : SELECT room_id, room_no, room_name, room_type_id              │
+-- │            FROM room WHERE floor_id=:fid AND tenant_id=:tid               │
+-- │            AND is_active=true ORDER BY room_no                            │
+-- │  Response: 200                                                            │
+-- │  { "data": [{ "id": 2, "roomNo": "ER-001", "name": "Emergency" }] }      │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  8.4  GET /api/v1/locations/beds                                           │
+-- │  Purpose : Cascading dropdown - beds for a room                           │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  Query   : ?room_id=10                                                    │
+-- │  DB      : SELECT bed_id, bed_no, bed_code                                │
+-- │            FROM bed WHERE room_id=:rid AND tenant_id=:tid                 │
+-- │            AND is_active=true ORDER BY bed_no::INT                        │
+-- │  Response: 200                                                            │
+-- │  { "data": [{ "id": 85, "bedNo": "1", "bedCode": "MICU-B1" }] }          │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+
+-- ============================================================================
+-- SECTION 9: AGGREGATE / OVERVIEW APIs
+-- ============================================================================
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  9.1  GET /api/v1/locations/overview                                       │
+-- │  Purpose : Organization location overview (stats cards on UI header)      │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  Query   : ?org_id=1                                                      │
+-- │  DB      : SELECT * FROM vw_org_location_overview                         │
+-- │            WHERE tenant_id=:tid AND org_id=:oid                           │
+-- │  Response: 200                                                            │
+-- │  {                                                                        │
+-- │    "data": {                                                              │
+-- │      "orgId": 1,                                                          │
+-- │      "buildingCount": 2,                                                  │
+-- │      "floorCount": 12,                                                    │
+-- │      "roomCount": 24,                                                     │
+-- │      "bedCount": 126,                                                     │
+-- │      "activeBedCount": 126,                                               │
+-- │      "departmentCount": 8                                                 │
+-- │    }                                                                      │
+-- │  }                                                                        │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+-- ┌────────────────────────────────────────────────────────────────────────────┐
+-- │  9.2  GET /api/v1/locations/tree                                           │
+-- │  Purpose : Full nested tree (Building > Floor > Room > Bed) for the UI    │
+-- │            sidebar / accordion view                                       │
+-- │  Access  : org-admin, tenant-admin, platform-admin                        │
+-- │  Query   : ?org_id=1                                                      │
+-- │            &include_beds=true (optional, default false for performance)    │
+-- │  DB      : Multi-join query building the full nested JSON tree            │
+-- │  Response: 200                                                            │
+-- │  {                                                                        │
+-- │    "data": [                                                              │
+-- │      {                                                                    │
+-- │        "buildingId": 1, "buildingName": "Main Tower",                     │
+-- │        "floors": [                                                        │
+-- │          {                                                                │
+-- │            "floorId": 1, "floorName": "Basement",                         │
+-- │            "rooms": [                                                     │
+-- │              {                                                            │
+-- │                "roomId": 1, "roomNo": "CSSD-B01",                         │
+-- │                "beds": [ { "bedId": 1, "bedNo": "1" } ]                   │
+-- │              }                                                            │
+-- │            ]                                                              │
+-- │          }                                                                │
+-- │        ]                                                                  │
+-- │      }                                                                    │
+-- │    ]                                                                      │
+-- │  }                                                                        │
+-- └────────────────────────────────────────────────────────────────────────────┘
+
+
+-- ============================================================================
+-- API SUMMARY TABLE
+-- ============================================================================
+-- #    Method   Endpoint                                        Purpose                    Screen Action
+-- ---  ------   -----------------------------------------------  -----------------------    -------------------------
+-- 1.1  GET      /api/v1/room-types                               Room type dropdown         Room form: type select
+-- 1.2  GET      /api/v1/location-levels                          Location level dropdown    Mapping form: level select
+--
+-- 2.1  GET      /api/v1/buildings?org_id=                        List buildings             Tree sidebar (root nodes)
+-- 2.2  GET      /api/v1/buildings/:id                            Building + full tree       Expand building node
+-- 2.3  POST     /api/v1/buildings                                Create building            "Add Building" modal
+-- 2.4  PUT      /api/v1/buildings/:id                            Update building            "Edit Building" modal
+-- 2.5  DELETE   /api/v1/buildings/:id                            Delete building            Delete button
+--
+-- 3.1  GET      /api/v1/buildings/:id/floors                     List floors                Expand building accordion
+-- 3.2  POST     /api/v1/buildings/:id/floors                     Create floor               "Add Floor" modal
+-- 3.3  PUT      /api/v1/floors/:id                               Update floor               "Edit Floor" modal
+-- 3.4  DELETE   /api/v1/floors/:id                               Delete floor               Delete button
+--
+-- 4.1  GET      /api/v1/floors/:id/rooms                         List rooms                 Expand floor accordion
+-- 4.2  POST     /api/v1/floors/:id/rooms                         Create room                "Add Room" modal
+-- 4.3  PUT      /api/v1/rooms/:id                                Update room                "Edit Room" modal
+-- 4.4  DELETE   /api/v1/rooms/:id                                Delete room                Delete button
+--
+-- 5.1  GET      /api/v1/rooms/:id/beds                           List beds                  Expand room row
+-- 5.2  POST     /api/v1/rooms/:id/beds                           Create bed(s)              "Add Bed" modal / bulk
+-- 5.3  PUT      /api/v1/beds/:id                                 Update bed                 "Edit Bed" modal
+-- 5.4  DELETE   /api/v1/beds/:id                                 Delete bed                 Delete button
+--
+-- 6.1  GET      /api/v1/departments?org_id=                      List departments           Department tab
+-- 6.2  GET      /api/v1/departments/:id                          Dept + mappings            Expand dept row
+-- 6.3  POST     /api/v1/departments                              Create dept + mappings     "Add Department" modal
+-- 6.4  PUT      /api/v1/departments/:id                          Update dept details        "Edit Department" modal
+-- 6.5  DELETE   /api/v1/departments/:id                          Delete dept + mappings     Delete button
+--
+-- 7.1  GET      /api/v1/departments/:id/mappings                 List mappings              Mapping tag area
+-- 7.2  POST     /api/v1/departments/:id/mappings                 Add single mapping         "Map Location" modal
+-- 7.3  PUT      /api/v1/departments/:id/mappings/:mId            Update mapping (primary)   Toggle primary
+-- 7.4  DELETE   /api/v1/departments/:id/mappings/:mId            Remove mapping             Remove tag (X)
+-- 7.5  POST     /api/v1/departments/:id/mappings/bulk            Add multiple mappings      Inline mapping (dept form)
+--
+-- 8.1  GET      /api/v1/locations/buildings?org_id=               Cascade: buildings         Mapping dropdown
+-- 8.2  GET      /api/v1/locations/floors?building_id=             Cascade: floors            Mapping dropdown
+-- 8.3  GET      /api/v1/locations/rooms?floor_id=                 Cascade: rooms             Mapping dropdown
+-- 8.4  GET      /api/v1/locations/beds?room_id=                   Cascade: beds              Mapping dropdown
+--
+-- 9.1  GET      /api/v1/locations/overview?org_id=                Stats overview             Header stat cards
+-- 9.2  GET      /api/v1/locations/tree?org_id=                    Full nested tree           Sidebar accordion tree
+-- ============================================================================
+-- TOTAL: 27 endpoints (11 GET, 8 POST, 5 PUT, 5 DELETE, minus 2 bulk variants)
+-- ============================================================================
