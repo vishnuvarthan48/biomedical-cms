@@ -52,6 +52,7 @@ interface Asset {
   category: string;
   department: string;
   lastContractEndDate?: string; // last contract end date for this asset
+  warrantyExpiryDate?: string; // warranty expiry date
 }
 
 interface UploadedFile {
@@ -62,12 +63,12 @@ interface UploadedFile {
 }
 
 const mockAssets: Asset[] = [
-  { id: "AST-001", assetCode: "BME-MRI-001", serialNo: "MAG-2023-1001", deviceName: "MRI Scanner",       deviceModel: "Magnetom Vida",      category: "Imaging",      department: "Radiology",     lastContractEndDate: "2025-01-14" },
-  { id: "AST-002", assetCode: "BME-CT-002",  serialNo: "REV-2022-3044", deviceName: "CT Scanner",         deviceModel: "Revolution EVO",     category: "Imaging",      department: "Radiology",     lastContractEndDate: "2025-01-14" },
-  { id: "AST-003", assetCode: "BME-VENT-003",serialNo: "SAV-2024-8811", deviceName: "Ventilator",         deviceModel: "Savina 300",         category: "Life Support", department: "ICU",           lastContractEndDate: "2026-02-01" },
-  { id: "AST-004", assetCode: "BME-USG-004", serialNo: "EPQ-2023-5522", deviceName: "Ultrasound System",  deviceModel: "EPIQ Elite",         category: "Imaging",      department: "OB/GYN",        lastContractEndDate: "2024-05-31" },
-  { id: "AST-005", assetCode: "BME-INF-005", serialNo: "INF-2024-7733", deviceName: "Infusion Pump",      deviceModel: "Infusomat Space",    category: "Infusion",     department: "General Ward",  lastContractEndDate: "2026-02-01" },
-  { id: "AST-006", assetCode: "BME-DEF-006", serialNo: "HRT-2023-4456", deviceName: "Defibrillator",      deviceModel: "HeartStart MRx",     category: "Emergency",    department: "Emergency",     lastContractEndDate: "2024-05-31" },
+  { id: "AST-001", assetCode: "BME-MRI-001", serialNo: "MAG-2023-1001", deviceName: "MRI Scanner",       deviceModel: "Magnetom Vida",      category: "Imaging",      department: "Radiology",     lastContractEndDate: "2025-01-14", warrantyExpiryDate: "2024-03-20" },
+  { id: "AST-002", assetCode: "BME-CT-002",  serialNo: "REV-2022-3044", deviceName: "CT Scanner",         deviceModel: "Revolution EVO",     category: "Imaging",      department: "Radiology",     lastContractEndDate: "2025-01-14", warrantyExpiryDate: "2025-06-15" },
+  { id: "AST-003", assetCode: "BME-VENT-003",serialNo: "SAV-2024-8811", deviceName: "Ventilator",         deviceModel: "Savina 300",         category: "Life Support", department: "ICU",           lastContractEndDate: "2026-02-01", warrantyExpiryDate: "2026-09-30" },
+  { id: "AST-004", assetCode: "BME-USG-004", serialNo: "EPQ-2023-5522", deviceName: "Ultrasound System",  deviceModel: "EPIQ Elite",         category: "Imaging",      department: "OB/GYN",        lastContractEndDate: "2024-05-31", warrantyExpiryDate: "2024-12-31" },
+  { id: "AST-005", assetCode: "BME-INF-005", serialNo: "INF-2024-7733", deviceName: "Infusion Pump",      deviceModel: "Infusomat Space",    category: "Infusion",     department: "General Ward",  lastContractEndDate: "2026-02-01", warrantyExpiryDate: "2027-01-15" },
+  { id: "AST-006", assetCode: "BME-DEF-006", serialNo: "HRT-2023-4456", deviceName: "Defibrillator",      deviceModel: "HeartStart MRx",     category: "Emergency",    department: "Emergency",     lastContractEndDate: "2024-05-31", warrantyExpiryDate: "2024-08-10" },
 ];
 
 // PO Number → asset IDs mapping
@@ -196,6 +197,8 @@ function AssetPickerModal({
   const [lookupPoNumber, setLookupPoNumber] = useState("");
   const [lookupVendor, setLookupVendor] = useState(currentVendor ?? "none");
   const [lookupPrevContract, setLookupPrevContract] = useState("none");
+  const [lookupDeviceCategory, setLookupDeviceCategory] = useState("none");
+  const [lookupWarrantyFilter, setLookupWarrantyFilter] = useState<"none" | "expired" | "expiring-soon" | "valid">("none");
   const [lookupResults, setLookupResults] = useState<Asset[]>([]);
   const [lookupSource, setLookupSource] = useState<string>("");
 
@@ -225,18 +228,36 @@ function AssetPickerModal({
   };
 
   // --- Lookup helpers ---
-  const runLookup = (source: "po" | "vendor" | "contract", value: string) => {
+  const runLookup = (source: "po" | "vendor" | "contract" | "device" | "warranty", value: string) => {
     let ids: string[] = [];
     let label = "";
+    const today = new Date();
+    const thirtyDaysFromNow = new Date(today);
+    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+
     if (source === "po") {
       ids = poAssetMap[value.trim().toUpperCase()] ?? poAssetMap[value.trim()] ?? [];
       label = `PO ${value}`;
     } else if (source === "vendor") {
       ids = vendorAssetMap[value] ?? [];
       label = `Vendor`;
-    } else {
+    } else if (source === "contract") {
       ids = contractAssetMap[value] ?? [];
       label = `Contract ${value}`;
+    } else if (source === "device") {
+      ids = mockAssets.filter((a) => a.category === value).map((a) => a.id);
+      label = value;
+    } else if (source === "warranty") {
+      if (value === "expired") {
+        ids = mockAssets.filter((a) => a.warrantyExpiryDate && new Date(a.warrantyExpiryDate) < today).map((a) => a.id);
+        label = "Warranty Expired";
+      } else if (value === "expiring-soon") {
+        ids = mockAssets.filter((a) => a.warrantyExpiryDate && new Date(a.warrantyExpiryDate) <= thirtyDaysFromNow && new Date(a.warrantyExpiryDate) >= today).map((a) => a.id);
+        label = "Warranty Expiring Soon";
+      } else if (value === "valid") {
+        ids = mockAssets.filter((a) => a.warrantyExpiryDate && new Date(a.warrantyExpiryDate) > thirtyDaysFromNow).map((a) => a.id);
+        label = "Valid Warranty";
+      }
     }
     const assets = mockAssets.filter((a) => ids.includes(a.id));
     setLookupResults(assets);
@@ -393,7 +414,7 @@ function AssetPickerModal({
           {/* ── LOOKUP TAB ── */}
           {tab === "lookup" && (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {/* PO Number */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-bold">PO Number</Label>
@@ -469,6 +490,60 @@ function AssetPickerModal({
                     </Button>
                   </div>
                 </div>
+
+                {/* Device Category */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold">Device Category</Label>
+                  <div className="flex gap-1.5">
+                    <Select value={lookupDeviceCategory} onValueChange={setLookupDeviceCategory}>
+                      <SelectTrigger className="h-9 text-xs flex-1">
+                        <SelectValue placeholder="Select category..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Select category...</SelectItem>
+                        {assetCategories.map((cat) => (
+                          <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="sm"
+                      className="h-9 px-3 shrink-0 text-white border-0"
+                      style={{ background: "linear-gradient(135deg,#00BCD4,#00838F)" }}
+                      disabled={!lookupDeviceCategory || lookupDeviceCategory === "none"}
+                      onClick={() => runLookup("device", lookupDeviceCategory)}
+                    >
+                      <Search className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Warranty Status */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold">Warranty Status</Label>
+                  <div className="flex gap-1.5">
+                    <Select value={lookupWarrantyFilter} onValueChange={(val) => setLookupWarrantyFilter(val as typeof lookupWarrantyFilter)}>
+                      <SelectTrigger className="h-9 text-xs flex-1">
+                        <SelectValue placeholder="Select warranty..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Select warranty status...</SelectItem>
+                        <SelectItem value="expired">Warranty Expired</SelectItem>
+                        <SelectItem value="expiring-soon">Expiring Soon (30 days)</SelectItem>
+                        <SelectItem value="valid">Valid Warranty</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="sm"
+                      className="h-9 px-3 shrink-0 text-white border-0"
+                      style={{ background: "linear-gradient(135deg,#00BCD4,#00838F)" }}
+                      disabled={!lookupWarrantyFilter || lookupWarrantyFilter === "none"}
+                      onClick={() => runLookup("warranty", lookupWarrantyFilter)}
+                    >
+                      <Search className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
               </div>
 
               {/* Results */}
@@ -494,7 +569,7 @@ function AssetPickerModal({
 
               {lookupResults.length === 0 && lookupSource === "" && (
                 <div className="text-center py-10 text-muted-foreground text-sm border border-dashed border-border rounded-lg">
-                  Enter a PO Number, select a Vendor, or select a Previous Contract and click the search button to load assets.
+                  Use any filter above to search for assets by PO Number, Vendor, Previous Contract, Device Category, or Warranty Status.
                 </div>
               )}
             </div>

@@ -211,6 +211,14 @@ const navItems: NavItem[] = [
     roles: allRolesExceptEndUser,
   },
   {
+    id: MODULES.TASK_DOCUMENT,
+    label: "Task Document",
+    icon: ClipboardList,
+    section: "Administration",
+    path: ROUTES.TASK_DOCUMENT,
+    roles: ["tenant-admin", "platform-admin"],
+  },
+  {
     id: MODULES.VOUCHER_SERIES,
     label: "Voucher Series",
     icon: Hash,

@@ -21,6 +21,7 @@ export const MODULES = {
   NOTIFICATION_SETTINGS: "notification-settings",
   TICKET_ALLOCATION_RULES: "ticket-allocation-rules",
   CONTRACT_MANAGEMENT: "contract-management",
+  TASK_DOCUMENT: "task-document",
 } as const;
 
 export const ROUTES = {
@@ -51,4 +52,5 @@ export const ROUTES = {
   CONTRACT_MANAGEMENT: `/${MODULES.CONTRACT_MANAGEMENT}`,
   CONTRACT_CREATE: `/${MODULES.CONTRACT_MANAGEMENT}/create`,
   CONTRACT_EDIT: (id: string) => `/${MODULES.CONTRACT_MANAGEMENT}/edit/${id}`,
+  TASK_DOCUMENT: `/${MODULES.TASK_DOCUMENT}`,
 } as const;

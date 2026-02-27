@@ -23,6 +23,7 @@ import {
 import {
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Save,
   Send,
   Plus,
@@ -1948,6 +1949,42 @@ function MaintenanceTab() {
 
 // Tab 9: Contract
 function ContractTab() {
+  const [showPreviousContracts, setShowPreviousContracts] = useState(false);
+
+  // Mock previous contracts for this asset
+  const previousContracts = [
+    {
+      id: "AMC-2023-001",
+      type: "AMC",
+      vendor: "Siemens Medical",
+      startDate: "2023-01-15",
+      endDate: "2024-01-14",
+      status: "Expired",
+      coverage: "Preventive & Corrective",
+      renewalDate: "2024-01-15",
+    },
+    {
+      id: "CMC-2022-001",
+      type: "CMC",
+      vendor: "GE Healthcare",
+      startDate: "2022-06-01",
+      endDate: "2023-05-31",
+      status: "Expired",
+      coverage: "Corrective Only",
+      renewalDate: "—",
+    },
+    {
+      id: "WARRANTY-2020",
+      type: "Warranty",
+      vendor: "Original Manufacturer",
+      startDate: "2020-03-20",
+      endDate: "2023-03-19",
+      status: "Expired",
+      coverage: "Manufacturing Warranty",
+      renewalDate: "—",
+    },
+  ];
+
   return (
     <div className="flex flex-col gap-6">
       <p className="text-base text-muted-foreground">
@@ -2017,6 +2054,90 @@ function ContractTab() {
             readOnly
           />
         </FormField>
+      </div>
+
+      {/* Previous Contracts Section */}
+      <div className="border-t border-border pt-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <h3 className="text-base font-bold text-foreground">Previous Contracts</h3>
+            <span className="bg-muted text-muted-foreground text-xs font-bold px-2.5 py-1 rounded-md">
+              {previousContracts.length}
+            </span>
+          </div>
+          <button
+            onClick={() => setShowPreviousContracts(!showPreviousContracts)}
+            className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-[#00BCD4] hover:bg-[#00BCD4]/5 rounded transition-colors"
+          >
+            <ChevronDown
+              className={cn("w-4 h-4 transition-transform", showPreviousContracts && "rotate-180")}
+            />
+            {showPreviousContracts ? "Hide" : "View"} History
+          </button>
+        </div>
+
+        {showPreviousContracts && (
+          <div className="rounded-lg border border-border overflow-x-auto">
+            <table className="w-full text-sm min-w-[800px]">
+              <thead className="bg-muted/60 border-b border-border">
+                <tr>
+                  <th className="text-left px-4 py-3 font-bold text-xs text-muted-foreground uppercase tracking-wide">
+                    Contract ID
+                  </th>
+                  <th className="text-left px-4 py-3 font-bold text-xs text-muted-foreground uppercase tracking-wide">
+                    Type
+                  </th>
+                  <th className="text-left px-4 py-3 font-bold text-xs text-muted-foreground uppercase tracking-wide">
+                    Vendor
+                  </th>
+                  <th className="text-left px-4 py-3 font-bold text-xs text-muted-foreground uppercase tracking-wide">
+                    Start Date
+                  </th>
+                  <th className="text-left px-4 py-3 font-bold text-xs text-muted-foreground uppercase tracking-wide">
+                    End Date
+                  </th>
+                  <th className="text-left px-4 py-3 font-bold text-xs text-muted-foreground uppercase tracking-wide">
+                    Coverage
+                  </th>
+                  <th className="text-left px-4 py-3 font-bold text-xs text-muted-foreground uppercase tracking-wide">
+                    Status
+                  </th>
+                  <th className="text-left px-4 py-3 font-bold text-xs text-muted-foreground uppercase tracking-wide">
+                    Renewal Date
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {previousContracts.map((contract, idx) => (
+                  <tr
+                    key={contract.id}
+                    className={cn(
+                      "border-t border-border hover:bg-muted/30 transition-colors",
+                      idx % 2 === 0 ? "bg-background" : "bg-muted/10",
+                    )}
+                  >
+                    <td className="px-4 py-3 font-mono font-bold text-[#00BCD4]">{contract.id}</td>
+                    <td className="px-4 py-3">
+                      <span className="inline-block px-2 py-1 text-xs font-semibold rounded bg-blue-100 text-blue-700">
+                        {contract.type}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-foreground">{contract.vendor}</td>
+                    <td className="px-4 py-3 font-mono text-muted-foreground">{contract.startDate}</td>
+                    <td className="px-4 py-3 font-mono text-muted-foreground">{contract.endDate}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{contract.coverage}</td>
+                    <td className="px-4 py-3">
+                      <span className="inline-block px-2 py-1 text-xs font-semibold rounded bg-red-100 text-red-700">
+                        {contract.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{contract.renewalDate}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

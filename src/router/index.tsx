@@ -26,6 +26,7 @@ import { locationsRoute } from "../routes/locations.route";
 import { notificationSettingsRoute } from "../routes/notification-settings.route";
 import { ticketAllocationRulesRoute } from "../routes/ticket-allocation-rules.route";
 import { contractManagementRoute } from "../routes/contract-management.route";
+import { taskDocumentRoute } from "../routes/task-document.route";
 
 function RoleAwareRedirect() {
   const { userRole } = useAuth();
@@ -68,6 +69,7 @@ export const router = createBrowserRouter([
       notificationSettingsRoute,
       ticketAllocationRulesRoute,
       contractManagementRoute,
+      taskDocumentRoute,
       { path: "*", element: <Navigate to={ROUTES.DASHBOARD} replace /> },
     ],
   },
